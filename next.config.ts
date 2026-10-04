@@ -9,6 +9,8 @@ const staticExport = process.env.STATIC_EXPORT === "1"
 const nextConfig: NextConfig = {
   ...(staticExport && { output: "export" }),
   basePath: process.env.NEXT_PUBLIC_BASE_PATH || undefined,
+  // The dev-only badge would cover the phone action bar.
+  devIndicators: false,
 }
 
 export default nextConfig

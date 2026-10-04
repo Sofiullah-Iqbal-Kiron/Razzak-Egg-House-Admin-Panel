@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Noto_Serif_Bengali } from "next/font/google"
 
 import "./globals.css"
@@ -17,6 +17,13 @@ export const metadata: Metadata = {
   description: "রাজ্জাক এগ হাউসের ক্যাশ মেমো",
   applicationName: "রাজ্জাক এগ হাউস",
   icons: { icon: `${BASE_PATH}/icon.svg`, apple: `${BASE_PATH}/icon.svg` },
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Lets the phone action bar sit above the home indicator.
+  viewportFit: "cover",
 }
 
 export default function RootLayout({

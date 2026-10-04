@@ -1,8 +1,8 @@
 export type Lang = "bn" | "en"
 
-export const LANGS: { value: Lang; label: string }[] = [
-  { value: "bn", label: "বাংলা" },
-  { value: "en", label: "English" },
+export const LANGS: { value: Lang; label: string; short: string }[] = [
+  { value: "bn", label: "বাংলা", short: "বাং" },
+  { value: "en", label: "English", short: "EN" },
 ]
 
 const BN_DIGITS = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"]
@@ -76,12 +76,19 @@ const bn = {
   appName: "রাজ্জাক এগ হাউস",
   tagline: "মানসম্মত ডিম, পাইকারি ও খুচরা",
   language: "ভাষা",
+  theme: {
+    toggle: "থিম বদলান",
+    light: "লাইট",
+    dark: "ডার্ক",
+    system: "ডিভাইসের মতো",
+  },
   printer: "প্রিন্টার",
   connecting: "সংযোগ হচ্ছে…",
 
   customerTitle: "ক্রেতার তথ্য",
-  customerDescription: "তারিখ ছাড়া সবকিছু ঐচ্ছিক।",
+  customerDescription: "তারিখ ও সময় ছাড়া সবকিছু ঐচ্ছিক।",
   date: "তারিখ",
+  time: "সময়",
   pickDate: "তারিখ বাছাই করুন",
   customerName: "ক্রেতার নাম",
   customerNamePlaceholder: "ক্রেতার নাম লিখুন",
@@ -175,12 +182,19 @@ const en: Dictionary = {
   appName: "Razzak Egg House",
   tagline: "Quality eggs, wholesale and retail",
   language: "Language",
+  theme: {
+    toggle: "Toggle theme",
+    light: "Light",
+    dark: "Dark",
+    system: "System",
+  },
   printer: "Printer",
   connecting: "Connecting…",
 
   customerTitle: "Customer",
-  customerDescription: "Everything except the date is optional.",
+  customerDescription: "Everything except the date and time is optional.",
   date: "Date",
+  time: "Time",
   pickDate: "Pick a date",
   customerName: "Customer name",
   customerNamePlaceholder: "Enter customer name",
