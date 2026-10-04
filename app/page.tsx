@@ -621,7 +621,7 @@ export default function Page() {
     <>
       <div className="min-h-svh bg-muted/40 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-6">
         <header className="sticky top-0 z-10 bg-primary text-primary-foreground shadow-sm">
-          <div className="mx-auto flex max-w-[1920px] items-center gap-2 px-3 py-2.5 sm:px-4">
+          <div className="mx-auto flex max-w-[1680px] items-center gap-2 px-3 py-2.5 sm:px-4">
             <EggIcon className="shrink-0" />
             <div className="flex min-w-0 flex-1 flex-col">
               <h1 className="truncate font-semibold">{t.appName}</h1>
@@ -674,10 +674,10 @@ export default function Page() {
 
         {/*
           Phone: one column, preview in a drawer.
-          Tablet and laptop: two columns, sticky preview on the right.
-          Large monitor (2xl): products, bill and preview side by side.
+          Tablet and up (including large monitors): cards stacked in one
+          column, with the memo preview in its own sticky panel on the right.
         */}
-        <main className="mx-auto grid max-w-[1920px] items-start gap-3 p-3 sm:gap-4 sm:p-4 md:grid-cols-[minmax(0,1fr)_300px] lg:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_380px]">
+        <main className="mx-auto grid max-w-[1680px] items-start gap-3 p-3 sm:gap-4 sm:p-4 md:grid-cols-[minmax(0,1fr)_300px] lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="flex min-w-0 flex-col gap-3 sm:gap-4 md:col-start-1 md:row-start-1">
             <Card>
               <CardHeader>
@@ -777,7 +777,7 @@ export default function Page() {
                 <CardDescription>{t.productsDescription}</CardDescription>
               </CardHeader>
               <CardContent className="@container">
-                <ItemGroup className="grid grid-cols-1 gap-2 @[22rem]:grid-cols-2 @3xl:grid-cols-3">
+                <ItemGroup className="grid grid-cols-1 gap-2 @[22rem]:grid-cols-2 @3xl:grid-cols-3 @6xl:grid-cols-4">
                   {PRODUCTS.map((product) => {
                     const inBill = state.items.find(
                       (i) => i.productId === product.id
@@ -832,7 +832,7 @@ export default function Page() {
             </Card>
           </div>
 
-          <div className="flex min-w-0 flex-col gap-3 sm:gap-4 md:col-start-1 md:row-start-2 2xl:col-start-2 2xl:row-start-1">
+          <div className="flex min-w-0 flex-col gap-3 sm:gap-4 md:col-start-1 md:row-start-2">
             <Card>
               <CardHeader>
                 <CardTitle>{t.billTitle}</CardTitle>
@@ -967,7 +967,7 @@ export default function Page() {
             </Card>
           </div>
 
-          <aside className="hidden md:sticky md:top-18 md:col-start-2 md:row-span-2 md:row-start-1 md:block 2xl:col-start-3 2xl:row-span-1">
+          <aside className="hidden md:sticky md:top-18 md:col-start-2 md:row-span-2 md:row-start-1 md:block">
             <Card className="max-h-[calc(100svh-5.5rem)]">
               <CardHeader>
                 <CardTitle>{t.previewTitle}</CardTitle>

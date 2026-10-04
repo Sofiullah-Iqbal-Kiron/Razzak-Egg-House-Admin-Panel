@@ -8,9 +8,8 @@ nothing about a bill is saved.
 - Light, dark and system themes (shadcn/ui mode toggle).
 - Date and time pickers, prefilled with the current date and time.
 - Responsive from small phones to large monitors: one column with a bottom
-  action bar and drawers on phones, two columns with a sticky memo preview on
-  tablets and laptops, and three columns (products, bill, preview) on large
-  monitors.
+  action bar and drawers on phones, and cards stacked in one column with a
+  sticky memo preview panel on tablets, laptops and monitors.
 - Built only from shadcn/ui components on the project's `base-rhea` preset.
 - One font everywhere, on screen and on paper:
   [Noto Serif Bengali](https://fonts.google.com/noto/specimen/Noto+Serif+Bengali).
