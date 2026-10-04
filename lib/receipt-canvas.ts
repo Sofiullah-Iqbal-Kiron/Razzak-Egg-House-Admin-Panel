@@ -47,7 +47,7 @@ export async function loadReceiptFonts() {
 export function drawReceipt(bill: Bill, lang: Lang): HTMLCanvasElement {
   const t = DICTIONARIES[lang]
   const family = fontFamily()
-  const { items, subtotal, discount, total } = billTotals(bill)
+  const { items, subtotal, due, discount, total } = billTotals(bill)
 
   // Draw onto a tall scratch canvas, then crop to the used height.
   const canvas = document.createElement("canvas")
@@ -212,9 +212,10 @@ export function drawReceipt(bill: Bill, lang: Lang): HTMLCanvasElement {
     text(value, RIGHT, "right")
   }
   row(t.itemCount, formatNumber(items.length, lang))
-  if (discount > 0) {
+  if (due > 0 || discount > 0) {
     row(t.subtotal, `৳ ${formatNumber(subtotal, lang)}`)
-    row(t.discount, `- ৳ ${formatNumber(discount, lang)}`)
+    if (due > 0) row(t.due, `+ ৳ ${formatNumber(due, lang)}`)
+    if (discount > 0) row(t.discount, `- ৳ ${formatNumber(discount, lang)}`)
   }
   y += 16
   rule([], 3)

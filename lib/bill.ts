@@ -19,6 +19,8 @@ export type Bill = {
   customerName: string
   customerPhone: string
   items: BillItem[]
+  /** Amount still owed from earlier purchases; added to the total. */
+  due: string
   discount: string
 }
 
@@ -31,9 +33,10 @@ export function lineTotal(item: BillItem) {
   return parseNumber(item.qty) * parseNumber(item.price)
 }
 
-export function billTotals(bill: Pick<Bill, "items" | "discount">) {
+export function billTotals(bill: Pick<Bill, "items" | "due" | "discount">) {
   const items = bill.items.filter((i) => parseNumber(i.qty) > 0)
   const subtotal = items.reduce((sum, i) => sum + lineTotal(i), 0)
-  const discount = Math.min(parseNumber(bill.discount), subtotal)
-  return { items, subtotal, discount, total: subtotal - discount }
+  const due = parseNumber(bill.due)
+  const discount = Math.min(parseNumber(bill.discount), subtotal + due)
+  return { items, subtotal, due, discount, total: subtotal + due - discount }
 }

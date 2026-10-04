@@ -101,6 +101,7 @@ const bn = {
   otherItemDescription: "তালিকায় নেই এমন পণ্য",
 
   billTitle: "বিলের পণ্য",
+  billDescription: "পরিমাণ ও দর বদলাতে পারবেন।",
   emptyTitle: "এখনো কোনো পণ্য যোগ করা হয়নি",
   emptyDescription: "উপরের তালিকা থেকে পণ্য বাছাই করুন।",
   perUnit: (unit: string) => `প্রতি ${unit}`,
@@ -112,6 +113,8 @@ const bn = {
   remove: (name: string) => `${name} বাদ দিন`,
 
   summaryTitle: "হিসাব",
+  summaryDescription: "বকেয়া বা ছাড় দিন, মোট দেখুন।",
+  due: "বকেয়া",
   discount: "ছাড়",
   subtotal: "সর্বমোট",
   grandTotal: "মোট টাকা",
@@ -207,6 +210,7 @@ const en: Dictionary = {
   otherItemDescription: "Something not in the list",
 
   billTitle: "Items in bill",
+  billDescription: "Adjust the quantity and rate.",
   emptyTitle: "No items added yet",
   emptyDescription: "Choose products from the list above.",
   perUnit: (unit: string) => `per ${unit}`,
@@ -218,6 +222,8 @@ const en: Dictionary = {
   remove: (name: string) => `Remove ${name}`,
 
   summaryTitle: "Summary",
+  summaryDescription: "Add any due or discount, and check the total.",
+  due: "Due",
   discount: "Discount",
   subtotal: "Subtotal",
   grandTotal: "Total amount",

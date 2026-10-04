@@ -162,6 +162,7 @@ function newBillState() {
     customerName: "",
     customerPhone: "",
     items: [] as BillItem[],
+    due: "",
     discount: "",
   }
 }
@@ -177,6 +178,7 @@ function toBill(state: BillState): Bill {
     customerName: state.customerName,
     customerPhone: state.customerPhone,
     items: state.items,
+    due: state.due,
     discount: state.discount,
   }
 }
@@ -836,6 +838,7 @@ export default function Page() {
             <Card>
               <CardHeader>
                 <CardTitle>{t.billTitle}</CardTitle>
+                <CardDescription>{t.billDescription}</CardDescription>
               </CardHeader>
               <CardContent>
                 {state.items.length === 0 ? (
@@ -862,8 +865,8 @@ export default function Page() {
                           </ItemContent>
                           <ItemActions>
                             <Button
-                              variant="ghost"
-                              size="icon-lg"
+                              variant="destructive"
+                              size="icon"
                               aria-label={t.remove(name)}
                               onClick={() => removeItem(item.key)}
                             >
@@ -923,9 +926,23 @@ export default function Page() {
             <Card>
               <CardHeader>
                 <CardTitle>{t.summaryTitle}</CardTitle>
+                <CardDescription>{t.summaryDescription}</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <FieldGroup>
+                  <Field orientation="horizontal">
+                    <FieldLabel htmlFor="due">{t.due}</FieldLabel>
+                    <InputGroup className="h-9 max-w-40">
+                      <InputGroupAddon>
+                        <InputGroupText>৳</InputGroupText>
+                      </InputGroupAddon>
+                      <InputGroupInput
+                        id="due"
+                        placeholder={digits("0", lang)}
+                        {...numberInput(state.due, (due) => update({ due }))}
+                      />
+                    </InputGroup>
+                  </Field>
                   <Field orientation="horizontal">
                     <FieldLabel htmlFor="discount">{t.discount}</FieldLabel>
                     <InputGroup className="h-9 max-w-40">
@@ -952,6 +969,12 @@ export default function Page() {
                     <span>{t.subtotal}</span>
                     <span>{formatTaka(totals.subtotal, lang)}</span>
                   </div>
+                  {totals.due > 0 && (
+                    <div className="flex justify-between gap-4 text-muted-foreground">
+                      <span>{t.due}</span>
+                      <span>+ {formatTaka(totals.due, lang)}</span>
+                    </div>
+                  )}
                   {totals.discount > 0 && (
                     <div className="flex justify-between gap-4 text-muted-foreground">
                       <span>{t.discount}</span>
