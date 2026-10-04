@@ -3,7 +3,7 @@
  * Web Bluetooth API. Works in Chrome on Android over HTTPS (or localhost).
  */
 
-// Minimal Web Bluetooth typings — the API isn't part of TypeScript's DOM lib.
+// Minimal Web Bluetooth typings, the API isn't part of TypeScript's DOM lib.
 type BtCharacteristic = {
   uuid: string
   properties: { write: boolean; writeWithoutResponse: boolean }
@@ -41,6 +41,14 @@ const PRINTER_SERVICES = [
 ]
 const PREFERRED_CHARACTERISTIC = "49535343-8841-43f4-a8d4-ecbe34729bb3"
 
+/** Errors the UI translates into the current language. */
+export class PrinterError extends Error {
+  constructor(readonly code: "no-bluetooth" | "no-device" | "no-writable") {
+    super(code)
+    this.name = "PrinterError"
+  }
+}
+
 export type PrinterStatus = "idle" | "connecting" | "connected" | "printing"
 
 function bluetooth(): Bluetooth | undefined {
@@ -76,13 +84,13 @@ class BluetoothPrinter {
   }
 
   get name() {
-    return this.device?.name || "প্রিন্টার"
+    return this.device?.name || "RPP300"
   }
 
   /** Opens Chrome's device picker. Must be called from a tap/click. */
   async connect() {
     const bt = bluetooth()
-    if (!bt) throw new Error("এই ব্রাউজারে ব্লুটুথ সাপোর্ট নেই")
+    if (!bt) throw new PrinterError("no-bluetooth")
     this.setStatus("connecting")
     try {
       const device = await bt.requestDevice({
@@ -123,7 +131,7 @@ class BluetoothPrinter {
 
   private async ensureConnected() {
     const gatt = this.device?.gatt
-    if (!gatt) throw new Error("প্রিন্টার পাওয়া যায়নি")
+    if (!gatt) throw new PrinterError("no-device")
     if (gatt.connected && this.characteristic) return this.characteristic
 
     const server = await gatt.connect()
@@ -141,9 +149,7 @@ class BluetoothPrinter {
     }
     if (!fallback) {
       server.disconnect()
-      throw new Error(
-        "এই ডিভাইসে প্রিন্ট করার উপায় পাওয়া যায়নি। সঠিক প্রিন্টার বাছাই করুন।"
-      )
+      throw new PrinterError("no-writable")
     }
     this.characteristic = fallback
     return fallback
@@ -179,7 +185,7 @@ class BluetoothPrinter {
         try {
           await this.writeChunk(c, chunk)
         } catch (error) {
-          // Packet too large for the link's MTU — fall back to the BLE minimum.
+          // Packet too large for the link's MTU, fall back to the BLE minimum.
           if (this.chunkSize > 20) {
             this.chunkSize = 20
             continue

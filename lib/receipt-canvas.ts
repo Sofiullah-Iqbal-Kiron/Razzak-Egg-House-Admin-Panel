@@ -1,68 +1,74 @@
-import { billTotals, lineTotal, type Bill } from "@/lib/bill"
-import { formatDate, formatNumber, formatTime, toBn } from "@/lib/bn"
-import { PAYMENT_METHODS } from "@/lib/products"
+import { billTotals, itemName, lineTotal, type Bill } from "@/lib/bill"
+import {
+  DICTIONARIES,
+  digits,
+  formatDate,
+  formatNumber,
+  formatTime,
+  parseNumber,
+  type Lang,
+} from "@/lib/i18n"
+import { UNITS } from "@/lib/products"
 import { SHOP } from "@/lib/shop"
 
-/** 80mm paper, 203 dpi → 72mm printable = 576 dots. */
+/** 80mm paper at 203 dpi prints 72mm wide, which is 576 dots. */
 export const PAPER_DOTS = 576
 
-const PAD = 10
+const PAD = 8
 const RIGHT = PAPER_DOTS - PAD
+const CENTER = PAPER_DOTS / 2
 
-const EGG_LEFT_PATH =
-  "M22 4C12 4 4 18 4 29c0 9 8 16 18 16s18-7 18-16C40 18 32 4 22 4Z"
-const EGG_RIGHT_PATH =
-  "M43 2c-10 0-18 15-18 26 0 10 8 17 18 17s18-7 18-17C61 17 53 2 43 2Z"
+/** The lucide "egg" icon outline, drawn on a 24 unit grid. */
+const EGG_PATH = "M12 2C8 2 4 8 4 14a8 8 0 0 0 16 0c0-6-4-12-8-12"
 
-/** The font family next/font registered for --font-sans (Hind Siliguri). */
+/** The font family next/font registered for --font-sans (Noto Serif Bengali). */
 function fontFamily() {
   const family = getComputedStyle(document.documentElement)
     .getPropertyValue("--font-sans")
     .trim()
-  return family || "sans-serif"
+  return family || "serif"
 }
 
-/** Make sure every weight we draw with is loaded, including Bengali glyphs. */
+/** Makes sure every weight used on the memo is loaded, Bengali glyphs included. */
 export async function loadReceiptFonts() {
-  // Only the web font itself — the local() fallback face may not exist.
+  // Only the web font itself: the local() fallback face may not exist.
   const primary = fontFamily().split(",")[0]
   await Promise.allSettled(
-    [400, 500, 600, 700].map((w) =>
+    [500, 600, 700, 800].map((w) =>
       document.fonts.load(`${w} 24px ${primary}`, "বাংলা ০১২৩ Razzak ৳")
     )
   )
 }
 
 /**
- * Draws the cash memo at the printer's native resolution so that Bengali
- * text (which the printer has no built-in font for) can be sent as an image.
+ * Draws the cash memo at the printer's native resolution. The printer has no
+ * Bengali font, so the memo is printed as this picture.
  */
-export function drawReceipt(bill: Bill): HTMLCanvasElement {
+export function drawReceipt(bill: Bill, lang: Lang): HTMLCanvasElement {
+  const t = DICTIONARIES[lang]
   const family = fontFamily()
-  const { items, subtotal, discount, total, paid, due } = billTotals(bill)
-  const payment = PAYMENT_METHODS.find((p) => p.id === bill.payment)?.label
+  const { items, subtotal, discount, total } = billTotals(bill)
 
   // Draw onto a tall scratch canvas, then crop to the used height.
   const canvas = document.createElement("canvas")
   canvas.width = PAPER_DOTS
-  canvas.height = 1400 + items.length * 120
+  canvas.height = 1200 + items.length * 140
   const ctx = canvas.getContext("2d")!
   ctx.fillStyle = "#fff"
   ctx.fillRect(0, 0, canvas.width, canvas.height)
   ctx.fillStyle = "#000"
   ctx.strokeStyle = "#000"
-  ctx.textBaseline = "alphabetic"
 
-  let y = 8
+  let y = 6
 
-  const font = (size: number, weight = 500) => {
+  const font = (size: number, weight = 600) => {
     ctx.font = `${weight} ${size}px ${family}`
   }
   const text = (value: string, x: number, align: CanvasTextAlign = "left") => {
     ctx.textAlign = align
     ctx.fillText(value, x, y)
   }
-  const line = (dash: number[] = [], width = 2) => {
+  const rule = (dash: number[] = [], width = 2) => {
     ctx.save()
     ctx.setLineDash(dash)
     ctx.lineWidth = width
@@ -72,12 +78,11 @@ export function drawReceipt(bill: Bill): HTMLCanvasElement {
     ctx.stroke()
     ctx.restore()
   }
-  /** Splits text into lines that fit `maxWidth` with the current font. */
+  /** Splits text into lines that fit `maxWidth` in the current font. */
   const wrap = (value: string, maxWidth: number) => {
-    const words = value.split(/\s+/)
     const lines: string[] = []
     let current = ""
-    for (const word of words) {
+    for (const word of value.split(/\s+/)) {
       const next = current ? `${current} ${word}` : word
       if (current && ctx.measureText(next).width > maxWidth) {
         lines.push(current)
@@ -90,163 +95,148 @@ export function drawReceipt(bill: Bill): HTMLCanvasElement {
     return lines
   }
 
-  // Logo
-  const eggLeft = new Path2D(EGG_LEFT_PATH)
-  const eggRight = new Path2D(EGG_RIGHT_PATH)
+  // Logo: two eggs, like the lucide icon.
+  const egg = new Path2D(EGG_PATH)
   ctx.save()
-  const scale = 1.4
-  ctx.translate(PAPER_DOTS / 2 - 32 * scale, y)
-  ctx.scale(scale, scale)
-  ctx.lineWidth = 3
-  ctx.fillStyle = "#fff"
-  ctx.fill(eggLeft)
-  ctx.stroke(eggLeft)
-  ctx.fill(eggRight)
-  ctx.stroke(eggRight)
+  ctx.lineWidth = 1.6
+  ctx.lineJoin = "round"
+  for (const [dx, scale] of [
+    [-34, 2.6],
+    [2, 2.9],
+  ]) {
+    ctx.save()
+    ctx.translate(CENTER + dx, y + (2.9 - scale) * 24)
+    ctx.scale(scale, scale)
+    ctx.fillStyle = "#fff"
+    ctx.fill(egg)
+    ctx.stroke(egg)
+    ctx.restore()
+  }
   ctx.restore()
-  ctx.fillStyle = "#000"
-  y += 48 * scale + 40
+  y += 2.9 * 24 + 44
 
   // Shop
-  font(42, 700)
-  text(SHOP.name, PAPER_DOTS / 2, "center")
-  y += 30
+  font(40, 800)
+  text(SHOP.name[lang], CENTER, "center")
+  y += 32
   font(22, 600)
-  text(SHOP.nameEn, PAPER_DOTS / 2, "center")
-  y += 30
-  font(22, 500)
-  text(SHOP.tagline, PAPER_DOTS / 2, "center")
-  if (SHOP.address) {
-    y += 28
-    text(SHOP.address, PAPER_DOTS / 2, "center")
-  }
-  if (SHOP.phone) {
-    y += 28
-    text(`মোবাইল: ${toBn(SHOP.phone)}`, PAPER_DOTS / 2, "center")
-  }
+  text(SHOP.tagline[lang], CENTER, "center")
 
   // "Cash memo" badge
   y += 18
   font(28, 700)
-  const badge = "ক্যাশ মেমো"
-  const badgeW = ctx.measureText(badge).width + 48
+  const badgeWidth = ctx.measureText(t.cashMemo).width + 48
   ctx.beginPath()
-  ctx.roundRect(PAPER_DOTS / 2 - badgeW / 2, y, badgeW, 44, 10)
+  ctx.roundRect(CENTER - badgeWidth / 2, y, badgeWidth, 46, 10)
   ctx.fill()
-  y += 32
+  y += 33
   ctx.fillStyle = "#fff"
-  text(badge, PAPER_DOTS / 2, "center")
+  text(t.cashMemo, CENTER, "center")
   ctx.fillStyle = "#000"
-  y += 26
+  y += 24
 
-  // Meta
+  // Date and customer
   const meta: [string, string][] = [
-    ["বিল নং", toBn(bill.billNo)],
-    ["তারিখ", `${formatDate(bill.date)}, ${formatTime(bill.date)}`],
-    ["ক্রেতা", bill.customerName.trim() || "-"],
+    [t.date, `${formatDate(bill.date, lang)}, ${formatTime(bill.date, lang)}`],
   ]
+  if (bill.customerName.trim())
+    meta.push([t.customer, bill.customerName.trim()])
   if (bill.customerPhone.trim()) {
-    meta.push(["মোবাইল", toBn(bill.customerPhone.trim())])
+    meta.push([t.mobile, digits(bill.customerPhone.trim(), lang)])
   }
+  font(23, 600)
+  const labelWidth = Math.max(...meta.map(([l]) => ctx.measureText(l).width))
   for (const [label, value] of meta) {
-    y += 30
-    font(23, 500)
-    text(label, PAD)
-    text(":", 110)
+    y += 32
     font(23, 600)
-    const lines = wrap(value, RIGHT - 126)
-    lines.forEach((l, i) => {
-      if (i > 0) y += 28
-      text(l, 126)
+    text(label, PAD)
+    text(":", PAD + labelWidth + 8)
+    font(23, 700)
+    wrap(value, RIGHT - (PAD + labelWidth + 26)).forEach((line, i) => {
+      if (i > 0) y += 30
+      text(line, PAD + labelWidth + 26)
     })
   }
 
-  // Items table
+  // Items
   const COL_QTY = 330
-  const COL_RATE = 444
+  const COL_RATE = 446
   y += 18
-  line([8, 6])
+  rule([8, 6])
   y += 32
-  font(23, 700)
-  text("পণ্য", PAD)
-  text("পরিমাণ", COL_QTY, "right")
-  text("দর", COL_RATE, "right")
-  text("মোট", RIGHT, "right")
+  font(23, 800)
+  text(t.item, PAD)
+  text(t.quantity, COL_QTY, "right")
+  text(t.rate, COL_RATE, "right")
+  text(t.total, RIGHT, "right")
   y += 10
 
   if (items.length === 0) {
-    y += 40
-    font(23, 500)
-    text("কোনো পণ্য যোগ করা হয়নি", PAPER_DOTS / 2, "center")
-    y += 10
+    y += 42
+    font(23, 600)
+    text(t.noItems, CENTER, "center")
+    y += 8
   }
 
   items.forEach((item, index) => {
     if (index > 0) {
-      y += 4
-      line([2, 4], 1)
+      y += 6
+      rule([2, 4], 1)
     }
-    y += 32
-    font(24, 600)
-    const nameLines = wrap(item.name, 230)
-    text(nameLines[0], PAD)
-    font(24, 500)
-    text(formatNumber(Number(item.qty) || 0), COL_QTY, "right")
-    text(formatNumber(Number(item.price) || 0), COL_RATE, "right")
+    y += 34
     font(24, 700)
-    text(formatNumber(lineTotal(item)), RIGHT, "right")
+    const nameLines = wrap(itemName(item, lang), 220)
+    text(nameLines[0], PAD)
     font(24, 600)
-    for (const l of nameLines.slice(1)) {
-      y += 28
-      text(l, PAD)
+    text(formatNumber(parseNumber(item.qty), lang), COL_QTY, "right")
+    text(formatNumber(parseNumber(item.price), lang), COL_RATE, "right")
+    font(24, 800)
+    text(formatNumber(lineTotal(item), lang), RIGHT, "right")
+    font(24, 700)
+    for (const line of nameLines.slice(1)) {
+      y += 30
+      text(line, PAD)
     }
-    y += 26
-    font(19, 500)
-    text(`(${item.unit})`, PAD)
+    y += 27
+    font(19, 600)
+    text(`(${UNITS[item.unit][lang]})`, PAD)
   })
 
   // Totals
-  y += 16
-  line([8, 6])
-  const row = (label: string, value: string, weight = 500) => {
-    y += 32
-    font(24, weight)
+  y += 18
+  rule([8, 6])
+  const row = (label: string, value: string) => {
+    y += 34
+    font(24, 600)
     text(label, PAD)
     text(value, RIGHT, "right")
   }
-  row("মোট আইটেম", toBn(items.length))
+  row(t.itemCount, formatNumber(items.length, lang))
   if (discount > 0) {
-    row("সর্বমোট", `৳ ${formatNumber(subtotal)}`)
-    row("ছাড়", `- ৳ ${formatNumber(discount)}`)
+    row(t.subtotal, `৳ ${formatNumber(subtotal, lang)}`)
+    row(t.discount, `- ৳ ${formatNumber(discount, lang)}`)
   }
-  y += 14
-  line([], 3)
-  y += 40
-  font(32, 700)
-  text("মোট টাকা", PAD)
-  text(`৳ ${formatNumber(total)}`, RIGHT, "right")
-  y += 14
-  line([], 3)
-  if (paid !== null) {
-    row("পরিশোধ", `৳ ${formatNumber(paid)}`)
-    if (due > 0) row("বাকি", `৳ ${formatNumber(due)}`, 700)
-    if (due < 0) row("ফেরত", `৳ ${formatNumber(-due)}`, 700)
-  }
-  row("পেমেন্ট পদ্ধতি", payment ?? "-")
-
-  // Footer
-  y += 18
-  line([8, 6])
-  y += 34
-  font(23, 500)
-  text("আমাদের সাথে থাকার জন্য", PAPER_DOTS / 2, "center")
-  y += 36
-  font(30, 700)
-  text("ধন্যবাদ", PAPER_DOTS / 2, "center")
-  y += 30
-  font(20, 500)
-  text(`${SHOP.nameEn} • ${SHOP.footer}`, PAPER_DOTS / 2, "center")
   y += 16
+  rule([], 3)
+  y += 44
+  font(32, 800)
+  text(t.grandTotal, PAD)
+  text(`৳ ${formatNumber(total, lang)}`, RIGHT, "right")
+  y += 18
+  rule([], 3)
+
+  // Footer: shop / warehouse address
+  y += 36
+  font(22, 600)
+  for (const line of wrap(SHOP.address[lang], RIGHT - PAD)) {
+    text(line, CENTER, "center")
+    y += 28
+  }
+  if (SHOP.phone) {
+    text(`${t.mobile}: ${digits(SHOP.phone, lang)}`, CENTER, "center")
+    y += 28
+  }
+  y -= 18
 
   const out = document.createElement("canvas")
   out.width = PAPER_DOTS

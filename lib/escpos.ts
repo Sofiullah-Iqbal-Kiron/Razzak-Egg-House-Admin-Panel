@@ -6,7 +6,7 @@
 const ESC = 0x1b
 const GS = 0x1d
 
-/** Rows per GS v 0 block — small blocks keep cheap printers' buffers happy. */
+/** Rows per GS v 0 block: small blocks keep cheap printers' buffers happy. */
 const BAND_ROWS = 96
 
 export function canvasToEscPos(canvas: HTMLCanvasElement, feedLines = 4) {
