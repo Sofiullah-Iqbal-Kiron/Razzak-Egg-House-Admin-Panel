@@ -2,12 +2,13 @@
 
 import * as React from "react"
 import { flushSync } from "react-dom"
-import { bn as bnLocale, enUS as enLocale } from "react-day-picker/locale"
+import { bn as bnLocale } from "react-day-picker/locale"
 import {
   BluetoothConnectedIcon,
   BluetoothIcon,
   ChevronDownIcon,
   EggIcon,
+  ExternalLinkIcon,
   MinusIcon,
   PackagePlusIcon,
   PhoneIcon,
@@ -28,7 +29,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -43,6 +43,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox"
 import {
   Dialog,
   DialogClose,
@@ -76,7 +84,6 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import {
   InputGroup,
   InputGroupAddon,
@@ -98,14 +105,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
@@ -129,18 +128,14 @@ import { canvasToEscPos } from "@/lib/escpos"
 import { LOGO_SRC } from "@/lib/logo"
 import {
   cleanNumberInput,
-  DICTIONARIES,
   digits,
   formatDate,
   formatNumber,
   formatTaka,
   formatTime,
-  LANGS,
   parseNumber,
   toLatinDigits,
-  type Dictionary,
-  type Lang,
-} from "@/lib/i18n"
+} from "@/lib/bn"
 import {
   PRODUCTS,
   UNIT_KEYS,
@@ -148,20 +143,29 @@ import {
   type Product,
   type Unit,
 } from "@/lib/products"
-import { SHOP } from "@/lib/shop"
+import { DEVELOPER, SHOP } from "@/lib/shop"
+import { T } from "@/lib/text"
 import { drawReceipt, loadReceiptFonts, PAPER_DOTS } from "@/lib/receipt-canvas"
-
-const LANG_KEY = "razzak-pos-lang"
 
 let keySeq = 0
 const nextKey = () => `item-${++keySeq}`
 
-function readLang(): Lang {
-  try {
-    return window.localStorage.getItem(LANG_KEY) === "en" ? "en" : "bn"
-  } catch {
-    return "bn"
-  }
+type TimeItem = { value: number; label: string }
+
+const timeItem = (value: number): TimeItem => ({
+  value,
+  label: digits(String(value).padStart(2, "0")),
+})
+
+const HOURS = Array.from({ length: 12 }, (_, i) => timeItem(i + 1))
+const MINUTES = Array.from({ length: 60 }, (_, i) => timeItem(i))
+
+/** Matches typed Bengali or Latin digits, e.g. "৫", "5" or "05" finds ০৫. */
+function matchTimeItem(item: TimeItem, query: string) {
+  const typed = toLatinDigits(query.trim())
+  if (!typed) return true
+  const padded = String(item.value).padStart(2, "0")
+  return padded.startsWith(typed) || String(item.value).startsWith(typed)
 }
 
 function newBillState() {
@@ -195,12 +199,12 @@ function toBill(state: BillState): Bill {
   }
 }
 
-function printErrorMessage(error: unknown, t: Dictionary) {
+function printErrorMessage(error: unknown) {
   if (error instanceof PrinterError) {
-    if (error.code === "no-bluetooth") return t.errorNoBluetooth
-    if (error.code === "no-writable") return t.errorNoWritable
+    if (error.code === "no-bluetooth") return T.errorNoBluetooth
+    if (error.code === "no-writable") return T.errorNoWritable
   }
-  return error instanceof Error ? error.message : String(error)
+  return T.errorUnknown
 }
 
 const subscribeNothing = () => () => {}
@@ -214,9 +218,6 @@ export default function Page() {
     () => false
   )
 
-  const [lang, setLang] = React.useState<Lang>(() =>
-    typeof window === "undefined" ? "bn" : readLang()
-  )
   const [state, setState] = React.useState(newBillState)
   const [fontsReady, setFontsReady] = React.useState(false)
   const [dateOpen, setDateOpen] = React.useState(false)
@@ -224,6 +225,7 @@ export default function Page() {
   const [logoFailed, setLogoFailed] = React.useState(false)
   const [customOpen, setCustomOpen] = React.useState(false)
   const [printerOpen, setPrinterOpen] = React.useState(false)
+  const [resetOpen, setResetOpen] = React.useState(false)
   const [previewOpen, setPreviewOpen] = React.useState(false)
   const isMobile = useIsMobile()
   const [printImage, setPrintImage] = React.useState<string | null>(null)
@@ -241,7 +243,6 @@ export default function Page() {
     () => "idle" as PrinterStatus
   )
 
-  const t = DICTIONARIES[lang]
   const bill = toBill(state)
   const [hour24, minute] = state.time.split(":").map(Number)
   const isPm = hour24 >= 12
@@ -259,15 +260,6 @@ export default function Page() {
   const bluetoothSupported = mounted && isBluetoothSupported()
 
   React.useEffect(() => {
-    document.documentElement.lang = lang
-    try {
-      window.localStorage.setItem(LANG_KEY, lang)
-    } catch {
-      // Storage can be unavailable (private mode); the language still works.
-    }
-  }, [lang])
-
-  React.useEffect(() => {
     loadReceiptFonts().then(() => setFontsReady(true))
   }, [])
 
@@ -275,8 +267,8 @@ export default function Page() {
   const deferredState = React.useDeferredValue(state)
   const previewUrl = React.useMemo(() => {
     if (!mounted || !fontsReady) return null
-    return drawReceipt(toBill(deferredState), lang).toDataURL()
-  }, [mounted, fontsReady, deferredState, lang])
+    return drawReceipt(toBill(deferredState)).toDataURL()
+  }, [mounted, fontsReady, deferredState])
 
   if (!mounted) {
     return (
@@ -354,12 +346,12 @@ export default function Page() {
     setCustomOpen(false)
   }
 
-  /** Props for a text input that edits a number in the current language's digits. */
+  /** Props for a text input that edits a number shown in Bengali digits. */
   const numberInput = (value: string, onValue: (value: string) => void) => ({
     type: "text",
     inputMode: "decimal" as const,
     autoComplete: "off",
-    value: digits(value, lang),
+    value: digits(value),
     onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
       onValue(cleanNumberInput(e.target.value)),
     onFocus: (e: React.FocusEvent<HTMLInputElement>) =>
@@ -369,7 +361,7 @@ export default function Page() {
   /** Fallback: the Android/browser print dialog, e.g. through RawBT. */
   const systemPrint = () => {
     if (!hasItems) return
-    const canvas = drawReceipt(bill, lang)
+    const canvas = drawReceipt(bill)
     // Size the page to the memo so the printer does not feed blank paper.
     const heightMm = Math.ceil((canvas.height * 72) / PAPER_DOTS) + 4
     if (!pageStyleRef.current) {
@@ -388,16 +380,16 @@ export default function Page() {
       // Choosing a printer must start inside the tap, before any await.
       if (!printer.hasDevice) await printer.connect()
       await loadReceiptFonts()
-      await printer.print(canvasToEscPos(drawReceipt(bill, lang)))
-      toast.add({ type: "success", title: t.toastPrinted })
+      await printer.print(canvasToEscPos(drawReceipt(bill)))
+      toast.add({ type: "success", title: T.toastPrinted })
     } catch (error) {
       // Closing Chrome's printer list is not an error.
       if (error instanceof DOMException && error.name === "NotFoundError")
         return
       toast.add({
         type: "error",
-        title: t.toastPrintFailed,
-        description: `${printErrorMessage(error, t)} ${t.toastPrintFailedHint}`,
+        title: T.toastPrintFailed,
+        description: `${printErrorMessage(error)} ${T.toastPrintFailedHint}`,
         priority: "high",
       })
     }
@@ -408,14 +400,14 @@ export default function Page() {
   const connectPrinter = async () => {
     try {
       await printer.connect()
-      toast.add({ type: "success", title: t.toastConnected(printer.name) })
+      toast.add({ type: "success", title: T.toastConnected(printer.name) })
     } catch (error) {
       if (error instanceof DOMException && error.name === "NotFoundError")
         return
       toast.add({
         type: "error",
-        title: t.toastPrintFailed,
-        description: printErrorMessage(error, t),
+        title: T.toastPrintFailed,
+        description: printErrorMessage(error),
       })
     }
   }
@@ -424,7 +416,7 @@ export default function Page() {
     printing ? (
       <>
         <Spinner data-icon="inline-start" />
-        {t.printing}
+        {T.printing}
       </>
     ) : (
       <>
@@ -437,7 +429,7 @@ export default function Page() {
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={previewUrl}
-      alt={t.previewTitle}
+      alt={T.previewTitle}
       className="mx-auto w-full max-w-80 rounded-lg border"
     />
   ) : (
@@ -445,40 +437,23 @@ export default function Page() {
   )
 
   const newBillButton = (
-    <AlertDialog>
-      <AlertDialogTrigger
-        render={
-          <Button
-            variant="outline"
-            size="lg"
-            disabled={state.items.length === 0}
-          />
-        }
-      >
-        <RotateCcwIcon data-icon="inline-start" />
-        {t.newBill}
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{t.newBillTitle}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {t.newBillDescription}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{t.cancel}</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => {
-              setState(newBillState())
-              setPreviewOpen(false)
-            }}
-          >
-            {t.confirm}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <Button
+      variant="outline"
+      size="lg"
+      disabled={state.items.length === 0}
+      onClick={() => setResetOpen(true)}
+    >
+      <RotateCcwIcon data-icon="inline-start" />
+      {T.newBill}
+    </Button>
   )
+
+  /** Clears the bill and closes the confirmation (and the phone preview). */
+  const confirmNewBill = () => {
+    setState(newBillState())
+    setResetOpen(false)
+    setPreviewOpen(false)
+  }
 
   const printButton = (
     <Button
@@ -487,24 +462,24 @@ export default function Page() {
       disabled={!hasItems || printing}
       onClick={print}
     >
-      {printLabel(t.printMemo)}
+      {printLabel(T.printMemo)}
     </Button>
   )
 
   const customFields = (
     <FieldGroup>
       <Field>
-        <FieldLabel htmlFor="custom-name">{t.itemName}</FieldLabel>
+        <FieldLabel htmlFor="custom-name">{T.itemName}</FieldLabel>
         <Input
           id="custom-name"
-          placeholder={t.itemNamePlaceholder}
+          placeholder={T.itemNamePlaceholder}
           value={custom.name}
           onChange={(e) => setCustom({ ...custom, name: e.target.value })}
           autoFocus={!isMobile}
         />
       </Field>
       <Field>
-        <FieldTitle id="custom-unit">{t.unit}</FieldTitle>
+        <FieldTitle id="custom-unit">{T.unit}</FieldTitle>
         <ToggleGroup
           aria-labelledby="custom-unit"
           variant="outline"
@@ -516,14 +491,14 @@ export default function Page() {
         >
           {UNIT_KEYS.map((unit) => (
             <ToggleGroupItem key={unit} value={unit}>
-              {UNITS[unit][lang]}
+              {UNITS[unit]}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
       </Field>
       <FieldGroup className="grid grid-cols-2 gap-4">
         <Field>
-          <FieldLabel htmlFor="custom-qty">{t.quantity}</FieldLabel>
+          <FieldLabel htmlFor="custom-qty">{T.quantity}</FieldLabel>
           <Input
             id="custom-qty"
             {...numberInput(custom.qty, (qty) => setCustom({ ...custom, qty }))}
@@ -531,7 +506,7 @@ export default function Page() {
         </Field>
         <Field>
           <FieldLabel htmlFor="custom-price">
-            {t.ratePerUnit(UNITS[custom.unit][lang])}
+            {T.ratePerUnit(UNITS[custom.unit])}
           </FieldLabel>
           <InputGroup>
             <InputGroupAddon>
@@ -539,7 +514,7 @@ export default function Page() {
             </InputGroupAddon>
             <InputGroupInput
               id="custom-price"
-              placeholder={digits("0", lang)}
+              placeholder={digits("0")}
               {...numberInput(custom.price, (price) =>
                 setCustom({ ...custom, price })
               )}
@@ -557,7 +532,7 @@ export default function Page() {
       disabled={!custom.name.trim() || parseNumber(custom.qty) <= 0}
     >
       <PlusIcon data-icon="inline-start" />
-      {t.addToBill}
+      {T.addToBill}
     </Button>
   )
 
@@ -576,24 +551,24 @@ export default function Page() {
             <ItemContent>
               <ItemTitle className="line-clamp-2">
                 {printerConnected
-                  ? t.printerConnected(printer.name)
+                  ? T.printerConnected(printer.name)
                   : printerStatus === "connecting"
-                    ? t.connecting
+                    ? T.connecting
                     : printer.hasDevice
-                      ? t.printerRemembered(printer.name)
-                      : t.printerNone}
+                      ? T.printerRemembered(printer.name)
+                      : T.printerNone}
               </ItemTitle>
             </ItemContent>
             <ItemActions>
               <Badge variant={printerConnected ? "default" : "secondary"}>
-                {printerConnected ? t.on : t.off}
+                {printerConnected ? T.on : T.off}
               </Badge>
             </ItemActions>
           </Item>
           <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm text-muted-foreground">
-            <li>{t.printerStep1}</li>
-            <li>{t.printerStep2}</li>
-            <li>{t.printerStep3}</li>
+            <li>{T.printerStep1}</li>
+            <li>{T.printerStep2}</li>
+            <li>{T.printerStep3}</li>
           </ol>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button
@@ -603,7 +578,7 @@ export default function Page() {
               onClick={connectPrinter}
             >
               <BluetoothIcon data-icon="inline-start" />
-              {printer.hasDevice ? t.choosePrinter : t.findPrinter}
+              {printer.hasDevice ? T.choosePrinter : T.findPrinter}
             </Button>
             {printer.hasDevice && (
               <Button
@@ -613,7 +588,7 @@ export default function Page() {
                 disabled={printing}
                 onClick={() => printer.disconnect()}
               >
-                {t.disconnect}
+                {T.disconnect}
               </Button>
             )}
           </div>
@@ -621,12 +596,12 @@ export default function Page() {
       ) : (
         <Alert variant="destructive">
           <BluetoothIcon />
-          <AlertTitle>{t.unsupportedTitle}</AlertTitle>
-          <AlertDescription>{t.unsupportedDescription}</AlertDescription>
+          <AlertTitle>{T.unsupportedTitle}</AlertTitle>
+          <AlertDescription>{T.unsupportedDescription}</AlertDescription>
         </Alert>
       )}
-      <FieldSeparator>{t.or}</FieldSeparator>
-      <p className="text-sm text-muted-foreground">{t.systemPrintHint}</p>
+      <FieldSeparator>{T.or}</FieldSeparator>
+      <p className="text-sm text-muted-foreground">{T.systemPrintHint}</p>
       <Button
         variant="outline"
         size="lg"
@@ -637,7 +612,7 @@ export default function Page() {
         }}
       >
         <PrinterIcon data-icon="inline-start" />
-        {t.systemPrint}
+        {T.systemPrint}
       </Button>
     </div>
   )
@@ -659,35 +634,13 @@ export default function Page() {
               />
             )}
             <div className="flex min-w-0 flex-1 flex-col">
-              <h1 className="truncate font-semibold">{t.appName}</h1>
-              <p className="truncate text-xs opacity-80">
-                {SHOP.address[lang]}
-              </p>
+              <h1 className="truncate font-semibold">{T.appName}</h1>
+              <p className="truncate text-xs opacity-80">{SHOP.address}</p>
             </div>
-            <div className="rounded-2xl bg-background text-foreground">
-              <Select
-                items={LANGS}
-                value={lang}
-                onValueChange={(value) => value && setLang(value as Lang)}
-              >
-                <SelectTrigger size="sm" aria-label={t.language}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  <SelectGroup>
-                    {LANGS.map((l) => (
-                      <SelectItem key={l.value} value={l.value}>
-                        {l.label}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            <ModeToggle labels={t.theme} variant="secondary" />
+            <ModeToggle labels={T.theme} variant="secondary" />
             <Button
               variant="secondary"
-              aria-label={t.printerTitle}
+              aria-label={T.printerTitle}
               onClick={() => setPrinterOpen(true)}
             >
               {printerConnected ? (
@@ -697,10 +650,10 @@ export default function Page() {
               )}
               <span className="hidden max-w-32 truncate sm:inline">
                 {printerStatus === "connecting"
-                  ? t.connecting
+                  ? T.connecting
                   : printerConnected
                     ? printer.name
-                    : t.printer}
+                    : T.printer}
               </span>
             </Button>
           </div>
@@ -715,13 +668,13 @@ export default function Page() {
           <div className="flex min-w-0 flex-col gap-3 sm:gap-4 md:col-start-1 md:row-start-1">
             <Card>
               <CardHeader>
-                <CardTitle>{t.customerTitle}</CardTitle>
-                <CardDescription>{t.customerDescription}</CardDescription>
+                <CardTitle>{T.customerTitle}</CardTitle>
+                <CardDescription>{T.customerDescription}</CardDescription>
               </CardHeader>
               <CardContent className="@container">
                 <FieldGroup className="grid grid-cols-2 gap-4 @3xl:grid-cols-4">
                   <Field>
-                    <FieldLabel htmlFor="bill-date">{t.date}</FieldLabel>
+                    <FieldLabel htmlFor="bill-date">{T.date}</FieldLabel>
                     <Popover open={dateOpen} onOpenChange={setDateOpen}>
                       <PopoverTrigger
                         render={
@@ -733,7 +686,7 @@ export default function Page() {
                         }
                       >
                         <span className="truncate">
-                          {formatDate(state.date, lang)}
+                          {formatDate(state.date)}
                         </span>
                         <ChevronDownIcon data-icon="inline-end" />
                       </PopoverTrigger>
@@ -742,8 +695,8 @@ export default function Page() {
                           mode="single"
                           selected={state.date}
                           defaultMonth={state.date}
-                          locale={lang === "bn" ? bnLocale : enLocale}
-                          numerals={lang === "bn" ? "beng" : "latn"}
+                          locale={bnLocale}
+                          numerals="beng"
                           onSelect={(date) => {
                             if (!date) return
                             update({ date })
@@ -754,7 +707,7 @@ export default function Page() {
                     </Popover>
                   </Field>
                   <Field>
-                    <FieldLabel htmlFor="bill-time">{t.time}</FieldLabel>
+                    <FieldLabel htmlFor="bill-time">{T.time}</FieldLabel>
                     <Popover open={timeOpen} onOpenChange={setTimeOpen}>
                       <PopoverTrigger
                         render={
@@ -766,43 +719,70 @@ export default function Page() {
                         }
                       >
                         <span className="truncate">
-                          {formatTime(bill.date, lang)}
+                          {formatTime(bill.date)}
                         </span>
                         <ChevronDownIcon data-icon="inline-end" />
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto" align="start">
-                        <div className="flex items-center gap-2">
-                          <NativeSelect
-                            aria-label={t.hour}
-                            value={hour12}
-                            onChange={(e) =>
-                              setTime(Number(e.target.value), minute, isPm)
+                      <PopoverContent
+                        className="w-auto max-w-[calc(100vw-1.5rem)]"
+                        align="start"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Combobox
+                            items={HOURS}
+                            value={HOURS[hour12 - 1]}
+                            onValueChange={(item) =>
+                              item && setTime(item.value, minute, isPm)
                             }
+                            itemToStringLabel={(item) => item.label}
+                            itemToStringValue={(item) => String(item.value)}
+                            filter={matchTimeItem}
+                            autoHighlight
                           >
-                            {Array.from({ length: 12 }, (_, i) => i + 1).map(
-                              (h) => (
-                                <NativeSelectOption key={h} value={h}>
-                                  {digits(String(h).padStart(2, "0"), lang)}
-                                </NativeSelectOption>
-                              )
-                            )}
-                          </NativeSelect>
+                            <ComboboxInput
+                              aria-label={T.hour}
+                              inputMode="numeric"
+                              className="w-20"
+                            />
+                            <ComboboxContent>
+                              <ComboboxEmpty>{T.noMatch}</ComboboxEmpty>
+                              <ComboboxList>
+                                {(item: TimeItem) => (
+                                  <ComboboxItem key={item.value} value={item}>
+                                    {item.label}
+                                  </ComboboxItem>
+                                )}
+                              </ComboboxList>
+                            </ComboboxContent>
+                          </Combobox>
                           <span aria-hidden="true">:</span>
-                          <NativeSelect
-                            aria-label={t.minute}
-                            value={minute}
-                            onChange={(e) =>
-                              setTime(hour12, Number(e.target.value), isPm)
+                          <Combobox
+                            items={MINUTES}
+                            value={MINUTES[minute]}
+                            onValueChange={(item) =>
+                              item && setTime(hour12, item.value, isPm)
                             }
+                            itemToStringLabel={(item) => item.label}
+                            itemToStringValue={(item) => String(item.value)}
+                            filter={matchTimeItem}
+                            autoHighlight
                           >
-                            {Array.from({ length: 60 }, (_, i) => i).map(
-                              (m) => (
-                                <NativeSelectOption key={m} value={m}>
-                                  {digits(String(m).padStart(2, "0"), lang)}
-                                </NativeSelectOption>
-                              )
-                            )}
-                          </NativeSelect>
+                            <ComboboxInput
+                              aria-label={T.minute}
+                              inputMode="numeric"
+                              className="w-20"
+                            />
+                            <ComboboxContent>
+                              <ComboboxEmpty>{T.noMatch}</ComboboxEmpty>
+                              <ComboboxList>
+                                {(item: TimeItem) => (
+                                  <ComboboxItem key={item.value} value={item}>
+                                    {item.label}
+                                  </ComboboxItem>
+                                )}
+                              </ComboboxList>
+                            </ComboboxContent>
+                          </Combobox>
                           <ToggleGroup
                             variant="outline"
                             value={[isPm ? "pm" : "am"]}
@@ -811,8 +791,8 @@ export default function Page() {
                               setTime(hour12, minute, value[0] === "pm")
                             }
                           >
-                            <ToggleGroupItem value="am">{t.am}</ToggleGroupItem>
-                            <ToggleGroupItem value="pm">{t.pm}</ToggleGroupItem>
+                            <ToggleGroupItem value="am">{T.am}</ToggleGroupItem>
+                            <ToggleGroupItem value="pm">{T.pm}</ToggleGroupItem>
                           </ToggleGroup>
                         </div>
                       </PopoverContent>
@@ -820,18 +800,18 @@ export default function Page() {
                   </Field>
                   <Field className="col-span-2 @md:col-span-1">
                     <FieldLabel htmlFor="customer-name">
-                      {t.customerName}
+                      {T.customerName}
                     </FieldLabel>
                     <Input
                       id="customer-name"
                       autoComplete="off"
-                      placeholder={t.customerNamePlaceholder}
+                      placeholder={T.customerNamePlaceholder}
                       value={state.customerName}
                       onChange={(e) => update({ customerName: e.target.value })}
                     />
                   </Field>
                   <Field className="col-span-2 @md:col-span-1">
-                    <FieldLabel htmlFor="customer-phone">{t.mobile}</FieldLabel>
+                    <FieldLabel htmlFor="customer-phone">{T.mobile}</FieldLabel>
                     <InputGroup>
                       <InputGroupAddon>
                         <PhoneIcon />
@@ -841,8 +821,8 @@ export default function Page() {
                         type="tel"
                         inputMode="tel"
                         autoComplete="off"
-                        placeholder={t.mobilePlaceholder}
-                        value={digits(state.customerPhone, lang)}
+                        placeholder={T.mobilePlaceholder}
+                        value={digits(state.customerPhone)}
                         onChange={(e) =>
                           update({
                             customerPhone: toLatinDigits(
@@ -859,8 +839,8 @@ export default function Page() {
 
             <Card>
               <CardHeader>
-                <CardTitle>{t.productsTitle}</CardTitle>
-                <CardDescription>{t.productsDescription}</CardDescription>
+                <CardTitle>{T.productsTitle}</CardTitle>
+                <CardDescription>{T.productsDescription}</CardDescription>
               </CardHeader>
               <CardContent className="@container">
                 <ItemGroup className="grid grid-cols-1 gap-2 @[22rem]:grid-cols-2 @xl:grid-cols-3">
@@ -878,16 +858,15 @@ export default function Page() {
                         onClick={() => addProduct(product)}
                       >
                         <ItemContent className="min-w-0">
-                          <ItemTitle>{product.name[lang]}</ItemTitle>
+                          <ItemTitle>{product.name}</ItemTitle>
                           <ItemDescription>
-                            {formatTaka(product.price, lang)} /{" "}
-                            {UNITS[product.unit][lang]}
+                            {formatTaka(product.price)} / {UNITS[product.unit]}
                           </ItemDescription>
                         </ItemContent>
                         <ItemActions>
                           {inBill ? (
                             <Badge>
-                              {formatNumber(parseNumber(inBill.qty), lang)}
+                              {formatNumber(parseNumber(inBill.qty))}
                             </Badge>
                           ) : (
                             <PlusIcon />
@@ -907,9 +886,9 @@ export default function Page() {
                       <PackagePlusIcon />
                     </ItemMedia>
                     <ItemContent className="min-w-0">
-                      <ItemTitle>{t.otherItem}</ItemTitle>
+                      <ItemTitle>{T.otherItem}</ItemTitle>
                       <ItemDescription>
-                        {t.otherItemDescription}
+                        {T.otherItemDescription}
                       </ItemDescription>
                     </ItemContent>
                   </Item>
@@ -921,8 +900,8 @@ export default function Page() {
           <div className="flex min-w-0 flex-col gap-3 sm:gap-4 md:col-start-1 md:row-start-2">
             <Card>
               <CardHeader>
-                <CardTitle>{t.billTitle}</CardTitle>
-                <CardDescription>{t.billDescription}</CardDescription>
+                <CardTitle>{T.billTitle}</CardTitle>
+                <CardDescription>{T.billDescription}</CardDescription>
               </CardHeader>
               <CardContent>
                 {state.items.length === 0 ? (
@@ -931,45 +910,45 @@ export default function Page() {
                       <EmptyMedia variant="icon">
                         <ReceiptTextIcon />
                       </EmptyMedia>
-                      <EmptyTitle>{t.emptyTitle}</EmptyTitle>
-                      <EmptyDescription>{t.emptyDescription}</EmptyDescription>
+                      <EmptyTitle>{T.emptyTitle}</EmptyTitle>
+                      <EmptyDescription>{T.emptyDescription}</EmptyDescription>
                     </EmptyHeader>
                   </Empty>
                 ) : (
                   <ItemGroup className="gap-2">
                     {state.items.map((item) => {
-                      const name = itemName(item, lang)
+                      const name = itemName(item)
                       return (
                         <Item key={item.key} variant="outline" size="sm">
                           <ItemContent className="min-w-0">
                             <ItemTitle>{name}</ItemTitle>
                             <ItemDescription>
-                              {t.perUnit(UNITS[item.unit][lang])}
+                              {T.perUnit(UNITS[item.unit])}
                             </ItemDescription>
                           </ItemContent>
                           <ItemActions>
                             <Button
                               variant="destructive"
                               size="icon"
-                              aria-label={t.remove(name)}
+                              aria-label={T.remove(name)}
                               onClick={() => removeItem(item.key)}
                             >
                               <Trash2Icon />
                             </Button>
                           </ItemActions>
                           <ItemFooter className="flex-wrap">
-                            <ButtonGroup aria-label={t.quantity}>
+                            <ButtonGroup aria-label={T.quantity}>
                               <Button
                                 variant="outline"
                                 size="icon-lg"
-                                aria-label={t.decrease}
+                                aria-label={T.decrease}
                                 disabled={parseNumber(item.qty) <= 0}
                                 onClick={() => stepQty(item, -1)}
                               >
                                 <MinusIcon />
                               </Button>
                               <Input
-                                aria-label={t.quantity}
+                                aria-label={T.quantity}
                                 className="h-9 w-16 text-center"
                                 {...numberInput(item.qty, (qty) =>
                                   updateItem(item.key, { qty })
@@ -978,7 +957,7 @@ export default function Page() {
                               <Button
                                 variant="outline"
                                 size="icon-lg"
-                                aria-label={t.increase}
+                                aria-label={T.increase}
                                 onClick={() => stepQty(item, 1)}
                               >
                                 <PlusIcon />
@@ -989,14 +968,14 @@ export default function Page() {
                                 <InputGroupText>৳</InputGroupText>
                               </InputGroupAddon>
                               <InputGroupInput
-                                aria-label={t.rate}
+                                aria-label={T.rate}
                                 {...numberInput(item.price, (price) =>
                                   updateItem(item.key, { price })
                                 )}
                               />
                             </InputGroup>
                             <span className="ml-auto font-medium">
-                              {formatTaka(lineTotal(item), lang)}
+                              {formatTaka(lineTotal(item))}
                             </span>
                           </ItemFooter>
                         </Item>
@@ -1009,33 +988,33 @@ export default function Page() {
 
             <Card>
               <CardHeader>
-                <CardTitle>{t.summaryTitle}</CardTitle>
-                <CardDescription>{t.summaryDescription}</CardDescription>
+                <CardTitle>{T.summaryTitle}</CardTitle>
+                <CardDescription>{T.summaryDescription}</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 <FieldGroup>
                   <Field orientation="horizontal">
-                    <FieldLabel htmlFor="due">{t.due}</FieldLabel>
+                    <FieldLabel htmlFor="due">{T.due}</FieldLabel>
                     <InputGroup className="h-9 max-w-40">
                       <InputGroupAddon>
                         <InputGroupText>৳</InputGroupText>
                       </InputGroupAddon>
                       <InputGroupInput
                         id="due"
-                        placeholder={digits("0", lang)}
+                        placeholder={digits("0")}
                         {...numberInput(state.due, (due) => update({ due }))}
                       />
                     </InputGroup>
                   </Field>
                   <Field orientation="horizontal">
-                    <FieldLabel htmlFor="discount">{t.discount}</FieldLabel>
+                    <FieldLabel htmlFor="discount">{T.discount}</FieldLabel>
                     <InputGroup className="h-9 max-w-40">
                       <InputGroupAddon>
                         <InputGroupText>৳</InputGroupText>
                       </InputGroupAddon>
                       <InputGroupInput
                         id="discount"
-                        placeholder={digits("0", lang)}
+                        placeholder={digits("0")}
                         {...numberInput(state.discount, (discount) =>
                           update({ discount })
                         )}
@@ -1046,28 +1025,28 @@ export default function Page() {
                 <Separator />
                 <div className="flex flex-col gap-2 text-sm">
                   <div className="flex justify-between gap-4 text-muted-foreground">
-                    <span>{t.itemCount}</span>
-                    <span>{formatNumber(totals.items.length, lang)}</span>
+                    <span>{T.itemCount}</span>
+                    <span>{formatNumber(totals.items.length)}</span>
                   </div>
                   <div className="flex justify-between gap-4 text-muted-foreground">
-                    <span>{t.subtotal}</span>
-                    <span>{formatTaka(totals.subtotal, lang)}</span>
+                    <span>{T.subtotal}</span>
+                    <span>{formatTaka(totals.subtotal)}</span>
                   </div>
                   {totals.due > 0 && (
                     <div className="flex justify-between gap-4 text-muted-foreground">
-                      <span>{t.due}</span>
-                      <span>+ {formatTaka(totals.due, lang)}</span>
+                      <span>{T.due}</span>
+                      <span>+ {formatTaka(totals.due)}</span>
                     </div>
                   )}
                   {totals.discount > 0 && (
                     <div className="flex justify-between gap-4 text-muted-foreground">
-                      <span>{t.discount}</span>
-                      <span>- {formatTaka(totals.discount, lang)}</span>
+                      <span>{T.discount}</span>
+                      <span>- {formatTaka(totals.discount)}</span>
                     </div>
                   )}
                   <div className="flex justify-between gap-4 text-lg font-semibold">
-                    <span>{t.grandTotal}</span>
-                    <span>{formatTaka(totals.total, lang)}</span>
+                    <span>{T.grandTotal}</span>
+                    <span>{formatTaka(totals.total)}</span>
                   </div>
                 </div>
               </CardContent>
@@ -1077,8 +1056,8 @@ export default function Page() {
           <aside className="hidden md:sticky md:top-18 md:col-start-2 md:row-span-2 md:row-start-1 md:block">
             <Card className="max-h-[calc(100svh-5.5rem)]">
               <CardHeader>
-                <CardTitle>{t.previewTitle}</CardTitle>
-                <CardDescription>{t.previewDescription}</CardDescription>
+                <CardTitle>{T.previewTitle}</CardTitle>
+                <CardDescription>{T.previewDescription}</CardDescription>
               </CardHeader>
               <CardContent className="min-h-0 flex-1 overflow-y-auto">
                 {previewImage}
@@ -1091,31 +1070,72 @@ export default function Page() {
           </aside>
         </main>
 
+        <footer className="mx-auto flex max-w-[1100px] flex-col items-center gap-3 px-3 pt-2 pb-6 text-center text-sm text-muted-foreground sm:px-4">
+          <Separator />
+          <p className="flex flex-wrap items-center justify-center gap-x-1.5">
+            {T.developedBy}
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto px-0"
+              nativeButton={false}
+              render={
+                <a
+                  href={DEVELOPER.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={T.developerProfile}
+                />
+              }
+            >
+              {DEVELOPER.name}
+              <ExternalLinkIcon data-icon="inline-end" />
+            </Button>
+          </p>
+        </footer>
+
         {/* Phone action bar. */}
         <div className="fixed inset-x-0 bottom-0 z-10 border-t bg-background px-3 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:hidden">
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="icon-lg"
-              aria-label={t.previewTitle}
+              aria-label={T.previewTitle}
               onClick={() => setPreviewOpen(true)}
             >
               <ReceiptTextIcon />
             </Button>
             <div className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-xs text-muted-foreground">
-                {t.grandTotal}
+                {T.grandTotal}
               </span>
               <span className="truncate text-lg font-semibold">
-                {formatTaka(totals.total, lang)}
+                {formatTaka(totals.total)}
               </span>
             </div>
             <Button size="lg" disabled={!hasItems || printing} onClick={print}>
-              {printLabel(t.print)}
+              {printLabel(T.print)}
             </Button>
           </div>
         </div>
       </div>
+
+      <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{T.newBillTitle}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {T.newBillDescription}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{T.cancel}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmNewBill}>
+              {T.confirm}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* The only thing the browser prints (system print). */}
       <div id="print-area" aria-hidden="true">
@@ -1133,8 +1153,8 @@ export default function Page() {
         >
           <DrawerContent>
             <DrawerHeader>
-              <DrawerTitle>{t.previewTitle}</DrawerTitle>
-              <DrawerDescription>{t.previewDescription}</DrawerDescription>
+              <DrawerTitle>{T.previewTitle}</DrawerTitle>
+              <DrawerDescription>{T.previewDescription}</DrawerDescription>
             </DrawerHeader>
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               {previewImage}
@@ -1152,8 +1172,8 @@ export default function Page() {
           <DrawerContent>
             <form onSubmit={addCustom} className="flex min-h-0 flex-1 flex-col">
               <DrawerHeader>
-                <DrawerTitle>{t.customTitle}</DrawerTitle>
-                <DrawerDescription>{t.customDescription}</DrawerDescription>
+                <DrawerTitle>{T.customTitle}</DrawerTitle>
+                <DrawerDescription>{T.customDescription}</DrawerDescription>
               </DrawerHeader>
               <div className="min-h-0 flex-1 overflow-y-auto p-4">
                 {customFields}
@@ -1161,7 +1181,7 @@ export default function Page() {
               <DrawerFooter>
                 {customSubmit}
                 <DrawerClose render={<Button variant="outline" size="lg" />}>
-                  {t.cancel}
+                  {T.cancel}
                 </DrawerClose>
               </DrawerFooter>
             </form>
@@ -1172,13 +1192,13 @@ export default function Page() {
           <DialogContent>
             <form onSubmit={addCustom} className="flex flex-col gap-6">
               <DialogHeader>
-                <DialogTitle>{t.customTitle}</DialogTitle>
-                <DialogDescription>{t.customDescription}</DialogDescription>
+                <DialogTitle>{T.customTitle}</DialogTitle>
+                <DialogDescription>{T.customDescription}</DialogDescription>
               </DialogHeader>
               {customFields}
               <DialogFooter>
                 <DialogClose render={<Button variant="outline" size="lg" />}>
-                  {t.cancel}
+                  {T.cancel}
                 </DialogClose>
                 {customSubmit}
               </DialogFooter>
@@ -1195,8 +1215,8 @@ export default function Page() {
         >
           <DrawerContent>
             <DrawerHeader>
-              <DrawerTitle>{t.printerTitle}</DrawerTitle>
-              <DrawerDescription>{t.printerDescription}</DrawerDescription>
+              <DrawerTitle>{T.printerTitle}</DrawerTitle>
+              <DrawerDescription>{T.printerDescription}</DrawerDescription>
             </DrawerHeader>
             <div className="min-h-0 flex-1 overflow-y-auto p-4">
               {printerBody}
@@ -1207,8 +1227,8 @@ export default function Page() {
         <Dialog open={printerOpen} onOpenChange={setPrinterOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{t.printerTitle}</DialogTitle>
-              <DialogDescription>{t.printerDescription}</DialogDescription>
+              <DialogTitle>{T.printerTitle}</DialogTitle>
+              <DialogDescription>{T.printerDescription}</DialogDescription>
             </DialogHeader>
             {printerBody}
           </DialogContent>

@@ -12,7 +12,7 @@ const notoSerifBengali = Noto_Serif_Bengali({
 })
 
 export const metadata: Metadata = {
-  title: "রাজ্জাক এগ হাউস | Razzak Egg House",
+  title: "রাজ্জাক এগ হাউস",
   description: "রাজ্জাক এগ হাউসের ক্যাশ মেমো",
   applicationName: "রাজ্জাক এগ হাউস",
 }

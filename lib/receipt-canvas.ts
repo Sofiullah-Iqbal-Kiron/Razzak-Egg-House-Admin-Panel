@@ -1,16 +1,15 @@
 import { billTotals, itemName, lineTotal, type Bill } from "@/lib/bill"
 import {
-  DICTIONARIES,
   digits,
   formatDate,
   formatNumber,
   formatTime,
   parseNumber,
-  type Lang,
-} from "@/lib/i18n"
+} from "@/lib/bn"
 import { MEMO_LOGO_SRC } from "@/lib/logo"
 import { UNITS } from "@/lib/products"
 import { SHOP } from "@/lib/shop"
+import { T } from "@/lib/text"
 
 /** 80mm paper at 203 dpi prints 72mm wide, which is 576 dots. */
 export const PAPER_DOTS = 576
@@ -95,7 +94,7 @@ export async function loadReceiptFonts() {
   const primary = fontFamily().split(",")[0]
   await Promise.allSettled([
     ...[500, 600, 700, 800].map((w) =>
-      document.fonts.load(`${w} 24px ${primary}`, "বাংলা ০১২৩ Razzak ৳")
+      document.fonts.load(`${w} 24px ${primary}`, "বাংলা ০১২৩ ৳")
     ),
     loadLogo(),
   ])
@@ -105,8 +104,7 @@ export async function loadReceiptFonts() {
  * Draws the cash memo at the printer's native resolution. The printer has no
  * Bengali font, so the memo is printed as this picture.
  */
-export function drawReceipt(bill: Bill, lang: Lang): HTMLCanvasElement {
-  const t = DICTIONARIES[lang]
+export function drawReceipt(bill: Bill): HTMLCanvasElement {
   const family = fontFamily()
   const { items, subtotal, due, discount, total } = billTotals(bill)
 
@@ -184,33 +182,33 @@ export function drawReceipt(bill: Bill, lang: Lang): HTMLCanvasElement {
 
   // Shop name
   font(40, 800)
-  text(SHOP.name[lang], CENTER, "center")
+  text(SHOP.name, CENTER, "center")
   y += 32
   font(22, 600)
-  const phones = SHOP.phones.map((p) => digits(p, lang)).join("  ·  ")
+  const phones = SHOP.phones.map((p) => digits(p)).join("  ·  ")
   text(phones, CENTER, "center")
 
   // "Cash memo" badge
   y += 18
   font(28, 700)
-  const badgeWidth = ctx.measureText(t.cashMemo).width + 48
+  const badgeWidth = ctx.measureText(T.cashMemo).width + 48
   ctx.beginPath()
   ctx.roundRect(CENTER - badgeWidth / 2, y, badgeWidth, 46, 10)
   ctx.fill()
   y += 33
   ctx.fillStyle = "#fff"
-  text(t.cashMemo, CENTER, "center")
+  text(T.cashMemo, CENTER, "center")
   ctx.fillStyle = "#000"
   y += 24
 
   // Date and customer
   const meta: [string, string][] = [
-    [t.date, `${formatDate(bill.date, lang)}, ${formatTime(bill.date, lang)}`],
+    [T.date, `${formatDate(bill.date)}, ${formatTime(bill.date)}`],
   ]
   if (bill.customerName.trim())
-    meta.push([t.customer, bill.customerName.trim()])
+    meta.push([T.customer, bill.customerName.trim()])
   if (bill.customerPhone.trim()) {
-    meta.push([t.mobile, digits(bill.customerPhone.trim(), lang)])
+    meta.push([T.mobile, digits(bill.customerPhone.trim())])
   }
   font(23, 600)
   const labelWidth = Math.max(...meta.map(([l]) => ctx.measureText(l).width))
@@ -233,16 +231,16 @@ export function drawReceipt(bill: Bill, lang: Lang): HTMLCanvasElement {
   rule([8, 6])
   y += 32
   font(23, 800)
-  text(t.item, PAD)
-  text(t.quantity, COL_QTY, "right")
-  text(t.rate, COL_RATE, "right")
-  text(t.total, RIGHT, "right")
+  text(T.item, PAD)
+  text(T.quantity, COL_QTY, "right")
+  text(T.rate, COL_RATE, "right")
+  text(T.total, RIGHT, "right")
   y += 10
 
   if (items.length === 0) {
     y += 42
     font(23, 600)
-    text(t.noItems, CENTER, "center")
+    text(T.noItems, CENTER, "center")
     y += 8
   }
 
@@ -253,13 +251,13 @@ export function drawReceipt(bill: Bill, lang: Lang): HTMLCanvasElement {
     }
     y += 34
     font(24, 700)
-    const nameLines = wrap(itemName(item, lang), 220)
+    const nameLines = wrap(itemName(item), 220)
     text(nameLines[0], PAD)
     font(24, 600)
-    text(formatNumber(parseNumber(item.qty), lang), COL_QTY, "right")
-    text(formatNumber(parseNumber(item.price), lang), COL_RATE, "right")
+    text(formatNumber(parseNumber(item.qty)), COL_QTY, "right")
+    text(formatNumber(parseNumber(item.price)), COL_RATE, "right")
     font(24, 800)
-    text(formatNumber(lineTotal(item), lang), RIGHT, "right")
+    text(formatNumber(lineTotal(item)), RIGHT, "right")
     font(24, 700)
     for (const line of nameLines.slice(1)) {
       y += 30
@@ -267,7 +265,7 @@ export function drawReceipt(bill: Bill, lang: Lang): HTMLCanvasElement {
     }
     y += 27
     font(19, 600)
-    text(`(${UNITS[item.unit][lang]})`, PAD)
+    text(`(${UNITS[item.unit]})`, PAD)
   })
 
   // Totals
@@ -279,25 +277,25 @@ export function drawReceipt(bill: Bill, lang: Lang): HTMLCanvasElement {
     text(label, PAD)
     text(value, RIGHT, "right")
   }
-  row(t.itemCount, formatNumber(items.length, lang))
+  row(T.itemCount, formatNumber(items.length))
   if (due > 0 || discount > 0) {
-    row(t.subtotal, `৳ ${formatNumber(subtotal, lang)}`)
-    if (due > 0) row(t.due, `+ ৳ ${formatNumber(due, lang)}`)
-    if (discount > 0) row(t.discount, `- ৳ ${formatNumber(discount, lang)}`)
+    row(T.subtotal, `৳ ${formatNumber(subtotal)}`)
+    if (due > 0) row(T.due, `+ ৳ ${formatNumber(due)}`)
+    if (discount > 0) row(T.discount, `- ৳ ${formatNumber(discount)}`)
   }
   y += 16
   rule([], 3)
   y += 44
   font(32, 800)
-  text(t.grandTotal, PAD)
-  text(`৳ ${formatNumber(total, lang)}`, RIGHT, "right")
+  text(T.grandTotal, PAD)
+  text(`৳ ${formatNumber(total)}`, RIGHT, "right")
   y += 18
   rule([], 3)
 
   // Footer: shop / warehouse address
   y += 36
   font(22, 600)
-  for (const line of wrap(SHOP.address[lang], RIGHT - PAD)) {
+  for (const line of wrap(SHOP.address, RIGHT - PAD)) {
     text(line, CENTER, "center")
     y += 28
   }

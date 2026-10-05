@@ -4,7 +4,7 @@ A single, open sales page for **রাজ্জাক এগ হাউস**. Pic
 quantity and price, and print an 80mm cash memo. No login, no database, and
 nothing about a bill is saved.
 
-- Bengali by default, with an English switch (remembered on the device).
+- Bengali only: every label, number, date and the printed memo.
 - Light, dark and system themes (shadcn/ui mode toggle).
 - Date and time pickers, prefilled with the current date and time.
 - Responsive from small phones to large monitors: one column with a bottom
@@ -46,7 +46,7 @@ and choose it as the printer.
 
 - Products, units and default prices: `lib/products.ts`
 - Shop name, tagline, footer address and phone: `lib/shop.ts`
-- All interface and memo text, in both languages: `lib/i18n.ts`
+- All interface and memo text: `lib/text.ts` (Bengali digits and dates: `lib/bn.ts`)
 
 ## Development
 

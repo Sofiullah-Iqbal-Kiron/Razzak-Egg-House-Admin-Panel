@@ -1,9 +1,9 @@
-import { parseNumber, type Lang } from "@/lib/i18n"
+import { parseNumber } from "@/lib/bn"
 import { PRODUCTS, type Unit } from "@/lib/products"
 
 export type BillItem = {
   key: string
-  /** Set for predefined products, so the name follows the language. */
+  /** Set for predefined products. */
   productId?: string
   /** Name typed for a custom item. */
   customName?: string
@@ -24,9 +24,9 @@ export type Bill = {
   discount: string
 }
 
-export function itemName(item: BillItem, lang: Lang) {
+export function itemName(item: BillItem) {
   const product = PRODUCTS.find((p) => p.id === item.productId)
-  return product ? product.name[lang] : (item.customName ?? "")
+  return product ? product.name : (item.customName ?? "")
 }
 
 export function lineTotal(item: BillItem) {
