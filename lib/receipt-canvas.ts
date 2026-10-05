@@ -8,6 +8,7 @@ import {
   parseNumber,
   type Lang,
 } from "@/lib/i18n"
+import { MEMO_LOGO_SRC } from "@/lib/logo"
 import { UNITS } from "@/lib/products"
 import { SHOP } from "@/lib/shop"
 
@@ -29,15 +30,75 @@ function fontFamily() {
   return family || "serif"
 }
 
-/** Makes sure every weight used on the memo is loaded, Bengali glyphs included. */
+/** Logo width on the paper, in dots (about 15mm). */
+const LOGO_DOTS = 120
+
+/** The logo converted to pure black and white, ready to print. */
+let logoCanvas: HTMLCanvasElement | null = null
+
+/**
+ * Loads the logo and dithers it to 1 bit: the thermal printer can only print
+ * black dots, so colors become patterns. Without a logo file the memo falls
+ * back to a simple egg icon.
+ */
+async function loadLogo() {
+  if (logoCanvas) return
+  const img = new Image()
+  img.src = MEMO_LOGO_SRC
+  await img.decode()
+  const width = LOGO_DOTS
+  const height = Math.round((img.naturalHeight / img.naturalWidth) * width)
+  const canvas = document.createElement("canvas")
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext("2d", { willReadFrequently: true })!
+  ctx.fillStyle = "#fff"
+  ctx.fillRect(0, 0, width, height)
+  ctx.imageSmoothingQuality = "high"
+  ctx.drawImage(img, 0, 0, width, height)
+  const image = ctx.getImageData(0, 0, width, height)
+  const px = image.data
+  // Grayscale, with a little extra contrast so the outlines stay strong.
+  const gray = new Float32Array(width * height)
+  for (let i = 0; i < gray.length; i++) {
+    const lum =
+      px[i * 4] * 0.299 + px[i * 4 + 1] * 0.587 + px[i * 4 + 2] * 0.114
+    gray[i] = Math.min(255, Math.max(0, (lum - 128) * 1.25 + 128 + 12))
+  }
+  // Floyd-Steinberg dithering.
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x
+      const old = gray[i]
+      const value = old < 128 ? 0 : 255
+      const err = old - value
+      gray[i] = value
+      if (x + 1 < width) gray[i + 1] += (err * 7) / 16
+      if (y + 1 < height) {
+        if (x > 0) gray[i + width - 1] += (err * 3) / 16
+        gray[i + width] += (err * 5) / 16
+        if (x + 1 < width) gray[i + width + 1] += err / 16
+      }
+    }
+  }
+  for (let i = 0; i < gray.length; i++) {
+    px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = gray[i]
+    px[i * 4 + 3] = 255
+  }
+  ctx.putImageData(image, 0, 0)
+  logoCanvas = canvas
+}
+
+/** Makes sure the fonts (Bengali glyphs included) and the logo are ready. */
 export async function loadReceiptFonts() {
   // Only the web font itself: the local() fallback face may not exist.
   const primary = fontFamily().split(",")[0]
-  await Promise.allSettled(
-    [500, 600, 700, 800].map((w) =>
+  await Promise.allSettled([
+    ...[500, 600, 700, 800].map((w) =>
       document.fonts.load(`${w} 24px ${primary}`, "বাংলা ০১২৩ Razzak ৳")
-    )
-  )
+    ),
+    loadLogo(),
+  ])
 }
 
 /**
@@ -95,32 +156,39 @@ export function drawReceipt(bill: Bill, lang: Lang): HTMLCanvasElement {
     return lines
   }
 
-  // Logo: two eggs, like the lucide icon.
-  const egg = new Path2D(EGG_PATH)
-  ctx.save()
-  ctx.lineWidth = 1.6
-  ctx.lineJoin = "round"
-  for (const [dx, scale] of [
-    [-34, 2.6],
-    [2, 2.9],
-  ]) {
+  // Logo
+  if (logoCanvas) {
+    ctx.drawImage(logoCanvas, CENTER - logoCanvas.width / 2, y)
+    y += logoCanvas.height + 34
+  } else {
+    // No logo file yet: two eggs, like the lucide icon.
+    const egg = new Path2D(EGG_PATH)
     ctx.save()
-    ctx.translate(CENTER + dx, y + (2.9 - scale) * 24)
-    ctx.scale(scale, scale)
-    ctx.fillStyle = "#fff"
-    ctx.fill(egg)
-    ctx.stroke(egg)
+    ctx.lineWidth = 1.6
+    ctx.lineJoin = "round"
+    for (const [dx, scale] of [
+      [-34, 2.6],
+      [2, 2.9],
+    ]) {
+      ctx.save()
+      ctx.translate(CENTER + dx, y + (2.9 - scale) * 24)
+      ctx.scale(scale, scale)
+      ctx.fillStyle = "#fff"
+      ctx.fill(egg)
+      ctx.stroke(egg)
+      ctx.restore()
+    }
     ctx.restore()
+    y += 2.9 * 24 + 44
   }
-  ctx.restore()
-  y += 2.9 * 24 + 44
 
-  // Shop
+  // Shop name
   font(40, 800)
   text(SHOP.name[lang], CENTER, "center")
   y += 32
   font(22, 600)
-  text(SHOP.tagline[lang], CENTER, "center")
+  const phones = SHOP.phones.map((p) => digits(p, lang)).join("  ·  ")
+  text(phones, CENTER, "center")
 
   // "Cash memo" badge
   y += 18
@@ -231,10 +299,6 @@ export function drawReceipt(bill: Bill, lang: Lang): HTMLCanvasElement {
   font(22, 600)
   for (const line of wrap(SHOP.address[lang], RIGHT - PAD)) {
     text(line, CENTER, "center")
-    y += 28
-  }
-  if (SHOP.phone) {
-    text(`${t.mobile}: ${digits(SHOP.phone, lang)}`, CENTER, "center")
     y += 28
   }
   y -= 18

@@ -1,8 +1,8 @@
 export type Lang = "bn" | "en"
 
-export const LANGS: { value: Lang; label: string; short: string }[] = [
-  { value: "bn", label: "বাংলা", short: "বাং" },
-  { value: "en", label: "English", short: "EN" },
+export const LANGS: { value: Lang; label: string }[] = [
+  { value: "bn", label: "বাংলা" },
+  { value: "en", label: "English" },
 ]
 
 const BN_DIGITS = ["০", "১", "২", "৩", "৪", "৫", "৬", "৭", "৮", "৯"]
@@ -74,7 +74,6 @@ export function formatTime(date: Date, lang: Lang) {
 
 const bn = {
   appName: "রাজ্জাক এগ হাউস",
-  tagline: "মানসম্মত ডিম, পাইকারি ও খুচরা",
   language: "ভাষা",
   theme: {
     toggle: "থিম বদলান",
@@ -89,6 +88,10 @@ const bn = {
   customerDescription: "তারিখ ও সময় ছাড়া সবকিছু ঐচ্ছিক।",
   date: "তারিখ",
   time: "সময়",
+  hour: "ঘণ্টা",
+  minute: "মিনিট",
+  am: "পূর্বাহ্ণ",
+  pm: "অপরাহ্ণ",
   pickDate: "তারিখ বাছাই করুন",
   customerName: "ক্রেতার নাম",
   customerNamePlaceholder: "ক্রেতার নাম লিখুন",
@@ -183,7 +186,6 @@ export type Dictionary = typeof bn
 
 const en: Dictionary = {
   appName: "Razzak Egg House",
-  tagline: "Quality eggs, wholesale and retail",
   language: "Language",
   theme: {
     toggle: "Toggle theme",
@@ -198,6 +200,10 @@ const en: Dictionary = {
   customerDescription: "Everything except the date and time is optional.",
   date: "Date",
   time: "Time",
+  hour: "Hour",
+  minute: "Minute",
+  am: "AM",
+  pm: "PM",
   pickDate: "Pick a date",
   customerName: "Customer name",
   customerNamePlaceholder: "Enter customer name",

@@ -76,6 +76,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer"
 import { Input } from "@/components/ui/input"
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import {
   InputGroup,
   InputGroupAddon,
@@ -97,6 +98,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
@@ -117,6 +126,7 @@ import {
 } from "@/lib/bluetooth-printer"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { canvasToEscPos } from "@/lib/escpos"
+import { LOGO_SRC } from "@/lib/logo"
 import {
   cleanNumberInput,
   DICTIONARIES,
@@ -124,6 +134,7 @@ import {
   formatDate,
   formatNumber,
   formatTaka,
+  formatTime,
   LANGS,
   parseNumber,
   toLatinDigits,
@@ -137,6 +148,7 @@ import {
   type Product,
   type Unit,
 } from "@/lib/products"
+import { SHOP } from "@/lib/shop"
 import { drawReceipt, loadReceiptFonts, PAPER_DOTS } from "@/lib/receipt-canvas"
 
 const LANG_KEY = "razzak-pos-lang"
@@ -208,6 +220,8 @@ export default function Page() {
   const [state, setState] = React.useState(newBillState)
   const [fontsReady, setFontsReady] = React.useState(false)
   const [dateOpen, setDateOpen] = React.useState(false)
+  const [timeOpen, setTimeOpen] = React.useState(false)
+  const [logoFailed, setLogoFailed] = React.useState(false)
   const [customOpen, setCustomOpen] = React.useState(false)
   const [printerOpen, setPrinterOpen] = React.useState(false)
   const [previewOpen, setPreviewOpen] = React.useState(false)
@@ -229,6 +243,15 @@ export default function Page() {
 
   const t = DICTIONARIES[lang]
   const bill = toBill(state)
+  const [hour24, minute] = state.time.split(":").map(Number)
+  const isPm = hour24 >= 12
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12
+  const setTime = (h12: number, m: number, pm: boolean) => {
+    const h = (h12 % 12) + (pm ? 12 : 0)
+    update({
+      time: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+    })
+  }
   const totals = billTotals(bill)
   const hasItems = totals.items.length > 0
   const printing = printerStatus === "printing"
@@ -624,33 +647,42 @@ export default function Page() {
       <div className="min-h-svh bg-muted/40 pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-6">
         <header className="sticky top-0 z-10 bg-primary text-primary-foreground shadow-sm">
           <div className="mx-auto flex max-w-[1100px] items-center gap-2 px-3 py-2.5 sm:px-4">
-            <EggIcon className="shrink-0" />
+            {logoFailed ? (
+              <EggIcon className="shrink-0" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={LOGO_SRC}
+                alt=""
+                className="size-10 shrink-0 rounded-xl bg-white object-contain p-0.5"
+                onError={() => setLogoFailed(true)}
+              />
+            )}
             <div className="flex min-w-0 flex-1 flex-col">
               <h1 className="truncate font-semibold">{t.appName}</h1>
-              <p className="hidden truncate text-xs opacity-80 sm:block">
-                {t.tagline}
+              <p className="truncate text-xs opacity-80">
+                {SHOP.address[lang]}
               </p>
             </div>
             <div className="rounded-2xl bg-background text-foreground">
-              <ToggleGroup
-                aria-label={t.language}
-                variant="outline"
-                size="sm"
-                spacing={0}
-                value={[lang]}
-                onValueChange={(value) => value[0] && setLang(value[0] as Lang)}
+              <Select
+                items={LANGS}
+                value={lang}
+                onValueChange={(value) => value && setLang(value as Lang)}
               >
-                {LANGS.map((l) => (
-                  <ToggleGroupItem
-                    key={l.value}
-                    value={l.value}
-                    aria-label={l.label}
-                  >
-                    <span className="sm:hidden">{l.short}</span>
-                    <span className="hidden sm:inline">{l.label}</span>
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
+                <SelectTrigger size="sm" aria-label={t.language}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  <SelectGroup>
+                    {LANGS.map((l) => (
+                      <SelectItem key={l.value} value={l.value}>
+                        {l.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </div>
             <ModeToggle labels={t.theme} variant="secondary" />
             <Button
@@ -723,16 +755,68 @@ export default function Page() {
                   </Field>
                   <Field>
                     <FieldLabel htmlFor="bill-time">{t.time}</FieldLabel>
-                    <Input
-                      type="time"
-                      id="bill-time"
-                      required
-                      value={state.time}
-                      onChange={(e) =>
-                        e.target.value && update({ time: e.target.value })
-                      }
-                      className="appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
-                    />
+                    <Popover open={timeOpen} onOpenChange={setTimeOpen}>
+                      <PopoverTrigger
+                        render={
+                          <Button
+                            id="bill-time"
+                            variant="outline"
+                            className="min-w-0 justify-between text-left font-normal"
+                          />
+                        }
+                      >
+                        <span className="truncate">
+                          {formatTime(bill.date, lang)}
+                        </span>
+                        <ChevronDownIcon data-icon="inline-end" />
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto" align="start">
+                        <div className="flex items-center gap-2">
+                          <NativeSelect
+                            aria-label={t.hour}
+                            value={hour12}
+                            onChange={(e) =>
+                              setTime(Number(e.target.value), minute, isPm)
+                            }
+                          >
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map(
+                              (h) => (
+                                <NativeSelectOption key={h} value={h}>
+                                  {digits(String(h).padStart(2, "0"), lang)}
+                                </NativeSelectOption>
+                              )
+                            )}
+                          </NativeSelect>
+                          <span aria-hidden="true">:</span>
+                          <NativeSelect
+                            aria-label={t.minute}
+                            value={minute}
+                            onChange={(e) =>
+                              setTime(hour12, Number(e.target.value), isPm)
+                            }
+                          >
+                            {Array.from({ length: 60 }, (_, i) => i).map(
+                              (m) => (
+                                <NativeSelectOption key={m} value={m}>
+                                  {digits(String(m).padStart(2, "0"), lang)}
+                                </NativeSelectOption>
+                              )
+                            )}
+                          </NativeSelect>
+                          <ToggleGroup
+                            variant="outline"
+                            value={[isPm ? "pm" : "am"]}
+                            onValueChange={(value) =>
+                              value[0] &&
+                              setTime(hour12, minute, value[0] === "pm")
+                            }
+                          >
+                            <ToggleGroupItem value="am">{t.am}</ToggleGroupItem>
+                            <ToggleGroupItem value="pm">{t.pm}</ToggleGroupItem>
+                          </ToggleGroup>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </Field>
                   <Field className="col-span-2 @md:col-span-1">
                     <FieldLabel htmlFor="customer-name">
