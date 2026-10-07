@@ -24,7 +24,7 @@ export const T = {
   mobile: "মোবাইল",
   mobilePlaceholder: "০১৭১২৩৪৫৬৭৮",
 
-  productsTitle: "পণ্য",
+  productsTitle: "পণ্য তালিকা",
   productsDescription: "পরিমাণ ও দর লিখুন, মোট নিজে থেকেই হিসাব হবে।",
   otherItem: "অন্য পণ্য",
   addOtherItem: "অন্য পণ্য যোগ করুন",
@@ -34,7 +34,7 @@ export const T = {
   total: "মোট",
   remove: (name: string) => `${name} বাদ দিন`,
 
-  summaryTitle: "হিসাব",
+  summaryTitle: "হিসাব বিবরণী",
   summaryDescription: "বকেয়া ও জমা দিন, অবশিষ্ট দেখুন।",
   due: "বকেয়া",
   deposit: "জমা",
