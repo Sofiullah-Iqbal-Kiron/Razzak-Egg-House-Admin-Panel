@@ -14,6 +14,13 @@ const notoSerifBengali = Noto_Serif_Bengali({
 export const metadata: Metadata = {
   title: "রাজ্জাক এগ হাউস",
   description: "রাজ্জাক এগ হাউসের ক্যাশ মেমো",
+  // Home-screen app on iPhone and iPad.
+  appleWebApp: {
+    capable: true,
+    title: "রাজ্জাক এগ",
+    statusBarStyle: "default",
+  },
+  formatDetection: { telephone: false },
   applicationName: "রাজ্জাক এগ হাউস",
 }
 
@@ -22,6 +29,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   // Lets the phone action bar sit above the home indicator.
   viewportFit: "cover",
+  themeColor: "#7008e7",
 }
 
 export default function RootLayout({

@@ -14,6 +14,17 @@ nothing about a bill is saved.
 - One font everywhere, on screen and on paper:
   [Noto Serif Bengali](https://fonts.google.com/noto/specimen/Noto+Serif+Bengali).
 
+## Install as an app (works offline)
+
+The site is a Progressive Web App. After it has been opened once with
+internet, it keeps working fully offline: nothing is stored on a server.
+
+- **Android (Chrome):** open the site, then menu (three dots), then
+  **Install app** (or **Add to Home screen**).
+- **iPhone / iPad (Safari):** Share button, then **Add to Home Screen**.
+
+The service worker is `public/sw.js`; it is only active in production builds.
+
 ## Printing
 
 ### Direct Bluetooth printing (recommended)
@@ -27,6 +38,13 @@ talks to it directly through Web Bluetooth:
 3. Tap **প্রিন্টার** (top right), then **প্রিন্টার খুঁজুন**, and pick the
    printer from Chrome's list.
 4. Tap **মেমো প্রিন্ট করুন**. The memo prints straight away.
+
+After the first pairing the app remembers the printer, so later a single tap
+on **প্রিন্ট** prints (on Chrome versions that support remembering Bluetooth
+devices; otherwise Chrome asks for the printer once per visit).
+
+**iPhone:** Safari has no Web Bluetooth, so direct printing needs the Bluefy
+browser; otherwise use system print.
 
 The printer has no Bengali font, so the memo is drawn as a 576 dot wide image
 (`lib/receipt-canvas.ts`) and sent as ESC/POS raster data (`lib/escpos.ts`,
@@ -44,7 +62,7 @@ and choose it as the printer.
 
 ## Customising
 
-- Products, units and default prices: `lib/products.ts`
+- Product catalog (one row per item on the bill): `lib/products.ts`
 - Shop name, tagline, footer address and phone: `lib/shop.ts`
 - All interface and memo text: `lib/text.ts` (Bengali digits and dates: `lib/bn.ts`)
 

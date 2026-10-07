@@ -24,29 +24,23 @@ export const T = {
   mobile: "মোবাইল",
   mobilePlaceholder: "০১৭১২৩৪৫৬৭৮",
 
-  productsTitle: "পণ্য বাছাই করুন",
-  productsDescription: "চাপ দিলে বিলে যোগ হবে, আবার চাপ দিলে পরিমাণ বাড়বে।",
+  productsTitle: "পণ্য",
+  productsDescription: "পরিমাণ ও দর লিখুন, মোট নিজে থেকেই হিসাব হবে।",
   otherItem: "অন্য পণ্য",
-  otherItemDescription: "তালিকায় নেই এমন পণ্য",
+  addOtherItem: "অন্য পণ্য যোগ করুন",
 
-  billTitle: "বিলের পণ্য",
-  billDescription: "পরিমাণ ও দর বদলাতে পারবেন।",
-  emptyTitle: "এখনো কোনো পণ্য যোগ করা হয়নি",
-  emptyDescription: "উপরের তালিকা থেকে পণ্য বাছাই করুন।",
-  perUnit: (unit: string) => `প্রতি ${unit}`,
   quantity: "পরিমাণ",
   rate: "দর",
   total: "মোট",
-  decrease: "কমান",
-  increase: "বাড়ান",
   remove: (name: string) => `${name} বাদ দিন`,
 
   summaryTitle: "হিসাব",
-  summaryDescription: "বকেয়া বা ছাড় দিন, মোট দেখুন।",
+  summaryDescription: "বকেয়া ও জমা দিন, অবশিষ্ট দেখুন।",
   due: "বকেয়া",
-  discount: "ছাড়",
+  deposit: "জমা",
   subtotal: "সর্বমোট",
-  grandTotal: "মোট টাকা",
+  remaining: "অবশিষ্ট",
+  change: "ফেরত",
   itemCount: "মোট আইটেম",
 
   previewTitle: "মেমো প্রিভিউ",
@@ -60,13 +54,7 @@ export const T = {
   cancel: "বাতিল",
   confirm: "হ্যাঁ, নতুন বিল",
 
-  customTitle: "অন্য পণ্য যোগ করুন",
-  customDescription: "এই পণ্যটি শুধু বর্তমান বিলে যোগ হবে।",
   itemName: "পণ্যের নাম",
-  itemNamePlaceholder: "যেমন: চিড়া",
-  unit: "একক",
-  ratePerUnit: (unit: string) => `দর (প্রতি ${unit})`,
-  addToBill: "বিলে যোগ করুন",
 
   printerTitle: "ব্লুটুথ প্রিন্টার",
   printerDescription:
@@ -86,7 +74,7 @@ export const T = {
   disconnect: "সংযোগ বিচ্ছিন্ন করুন",
   unsupportedTitle: "সরাসরি ব্লুটুথ প্রিন্ট সম্ভব নয়",
   unsupportedDescription:
-    "অ্যান্ড্রয়েডে Google Chrome দিয়ে https লিংকে পেজটি খুলুন, অথবা সিস্টেম প্রিন্ট ব্যবহার করুন।",
+    "অ্যান্ড্রয়েডে Google Chrome দিয়ে পেজটি খুলুন। আইফোনে সরাসরি ব্লুটুথ প্রিন্টের জন্য Bluefy ব্রাউজার ব্যবহার করুন, অথবা সিস্টেম প্রিন্ট ব্যবহার করুন।",
   or: "অথবা",
   systemPrintHint:
     "ফোনের প্রিন্ট অপশন দিয়ে প্রিন্ট করুন (RawBT প্রিন্ট সার্ভিস ইনস্টল থাকলে)।",
@@ -99,6 +87,8 @@ export const T = {
     "প্রিন্টার চালু ও কাছে আছে কিনা দেখুন, তারপর আবার চেষ্টা করুন।",
   errorNoBluetooth: "এই ব্রাউজারে ব্লুটুথ সাপোর্ট নেই।",
   errorUnknown: "অজানা সমস্যা হয়েছে।",
+  errorNotFound:
+    "আগের প্রিন্টারটি পাওয়া যায়নি। আবার প্রিন্ট চাপলে প্রিন্টার বাছাই করা যাবে।",
   errorNoWritable:
     "এই ডিভাইসে প্রিন্ট করার উপায় পাওয়া যায়নি। সঠিক প্রিন্টার বাছাই করুন।",
 

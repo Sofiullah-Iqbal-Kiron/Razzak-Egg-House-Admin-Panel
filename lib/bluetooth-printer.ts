@@ -20,9 +20,16 @@ type BtServer = {
   disconnect(): void
   getPrimaryServices(): Promise<BtService[]>
 }
-type BtDevice = EventTarget & { name?: string; gatt?: BtServer }
+type BtDevice = EventTarget & {
+  id: string
+  name?: string
+  gatt?: BtServer
+  watchAdvertisements?(options?: { signal?: AbortSignal }): Promise<void>
+}
 type Bluetooth = {
   getAvailability?(): Promise<boolean>
+  /** Printers this site was allowed to use before (newer Chrome versions). */
+  getDevices?(): Promise<BtDevice[]>
   requestDevice(options: {
     acceptAllDevices?: boolean
     optionalServices?: string[]
@@ -64,6 +71,26 @@ export function isBluetoothSupported() {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/** Remembers the chosen printer so the next visit can print without asking. */
+const DEVICE_KEY = "razzak-pos-printer"
+
+function rememberDevice(id: string | null) {
+  try {
+    if (id) localStorage.setItem(DEVICE_KEY, id)
+    else localStorage.removeItem(DEVICE_KEY)
+  } catch {
+    // Storage can be unavailable (private mode); printing still works.
+  }
+}
+
+function rememberedDeviceId() {
+  try {
+    return localStorage.getItem(DEVICE_KEY)
+  } catch {
+    return null
+  }
+}
+
 class BluetoothPrinter {
   device: BtDevice | null = null
   private characteristic: BtCharacteristic | null = null
@@ -98,8 +125,8 @@ class BluetoothPrinter {
         optionalServices: PRINTER_SERVICES,
       })
       if (this.device && this.device !== device) this.disconnect()
-      this.device = device
-      device.addEventListener("gattserverdisconnected", this.onDisconnected)
+      this.useDevice(device)
+      rememberDevice(device.id)
       await this.ensureConnected()
       this.setStatus("connected")
     } catch (error) {
@@ -116,7 +143,65 @@ class BluetoothPrinter {
     this.device?.gatt?.disconnect()
     this.device = null
     this.characteristic = null
+    rememberDevice(null)
     this.setStatus("idle")
+  }
+
+  private useDevice(device: BtDevice) {
+    this.device = device
+    this.restored = false
+    device.addEventListener("gattserverdisconnected", this.onDisconnected)
+  }
+
+  /** True when the device came from an earlier visit (not picked just now). */
+  private restored = false
+
+  /**
+   * Picks up the printer chosen on an earlier visit, so the first print tap
+   * prints straight away instead of opening the device list. Needs a Chrome
+   * version that supports navigator.bluetooth.getDevices(); otherwise the
+   * device list opens once per visit.
+   */
+  async restore() {
+    const bt = bluetooth()
+    const id = rememberedDeviceId()
+    if (!bt?.getDevices || !id || this.device) return
+    try {
+      const device = (await bt.getDevices()).find((d) => d.id === id)
+      if (!device || this.device) return
+      this.useDevice(device)
+      this.restored = true
+      this.setStatus(this.status)
+    } catch {
+      // Not available; the printer is chosen on the first print instead.
+    }
+  }
+
+  /** Waits until a remembered printer is in range, then connects to it. */
+  private async connectRestored(gatt: BtServer) {
+    const device = this.device
+    if (!device?.watchAdvertisements) return gatt.connect()
+    const abort = new AbortController()
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new PrinterError("no-device")),
+          8000
+        )
+        device.addEventListener(
+          "advertisementreceived",
+          () => {
+            clearTimeout(timer)
+            resolve()
+          },
+          { once: true }
+        )
+        device.watchAdvertisements!({ signal: abort.signal }).catch(reject)
+      })
+    } finally {
+      abort.abort()
+    }
+    return gatt.connect()
   }
 
   private onDisconnected = () => {
@@ -134,7 +219,13 @@ class BluetoothPrinter {
     if (!gatt) throw new PrinterError("no-device")
     if (gatt.connected && this.characteristic) return this.characteristic
 
-    const server = await gatt.connect()
+    let server: BtServer
+    try {
+      server = await gatt.connect()
+    } catch (error) {
+      if (!this.restored) throw error
+      server = await this.connectRestored(gatt)
+    }
     const services = await server.getPrimaryServices()
     let fallback: BtCharacteristic | null = null
     for (const service of services) {
@@ -202,6 +293,12 @@ class BluetoothPrinter {
       }
       this.setStatus("connected")
     } catch (error) {
+      if (this.restored && !this.device?.gatt?.connected) {
+        // The remembered printer could not be reached: the next tap opens the
+        // device list again.
+        this.device = null
+        this.characteristic = null
+      }
       this.setStatus(this.device?.gatt?.connected ? "connected" : "idle")
       throw error
     }

@@ -7,7 +7,6 @@ import {
   parseNumber,
 } from "@/lib/bn"
 import { MEMO_LOGO_SRC } from "@/lib/logo"
-import { UNITS } from "@/lib/products"
 import { SHOP } from "@/lib/shop"
 import { T } from "@/lib/text"
 
@@ -106,7 +105,7 @@ export async function loadReceiptFonts() {
  */
 export function drawReceipt(bill: Bill): HTMLCanvasElement {
   const family = fontFamily()
-  const { items, subtotal, due, discount, total } = billTotals(bill)
+  const { items, subtotal, due, deposit, remaining, change } = billTotals(bill)
 
   // Draw onto a tall scratch canvas, then crop to the used height.
   const canvas = document.createElement("canvas")
@@ -201,10 +200,8 @@ export function drawReceipt(bill: Bill): HTMLCanvasElement {
   ctx.fillStyle = "#000"
   y += 24
 
-  // Date and customer
-  const meta: [string, string][] = [
-    [T.date, `${formatDate(bill.date)}, ${formatTime(bill.date)}`],
-  ]
+  // Customer (the date and time are printed in the footer)
+  const meta: [string, string][] = []
   if (bill.customerName.trim())
     meta.push([T.customer, bill.customerName.trim()])
   if (bill.customerPhone.trim()) {
@@ -263,9 +260,7 @@ export function drawReceipt(bill: Bill): HTMLCanvasElement {
       y += 30
       text(line, PAD)
     }
-    y += 27
-    font(19, 600)
-    text(`(${UNITS[item.unit]})`, PAD)
+    y += 8
   })
 
   // Totals
@@ -278,23 +273,33 @@ export function drawReceipt(bill: Bill): HTMLCanvasElement {
     text(value, RIGHT, "right")
   }
   row(T.itemCount, formatNumber(items.length))
-  if (due > 0 || discount > 0) {
+  if (due > 0 || deposit > 0) {
     row(T.subtotal, `৳ ${formatNumber(subtotal)}`)
     if (due > 0) row(T.due, `+ ৳ ${formatNumber(due)}`)
-    if (discount > 0) row(T.discount, `- ৳ ${formatNumber(discount)}`)
+    if (deposit > 0) row(T.deposit, `- ৳ ${formatNumber(deposit)}`)
   }
   y += 16
   rule([], 3)
   y += 44
   font(32, 800)
-  text(T.grandTotal, PAD)
-  text(`৳ ${formatNumber(total)}`, RIGHT, "right")
+  text(T.remaining, PAD)
+  text(`৳ ${formatNumber(remaining)}`, RIGHT, "right")
   y += 18
   rule([], 3)
+  if (change > 0) {
+    y += 40
+    font(28, 800)
+    text(T.change, PAD)
+    text(`৳ ${formatNumber(change)}`, RIGHT, "right")
+    y += 14
+    rule([], 3)
+  }
 
-  // Footer: shop / warehouse address
+  // Footer: date and time, then the shop / warehouse address
   y += 36
   font(22, 600)
+  text(`${formatDate(bill.date)}, ${formatTime(bill.date)}`, CENTER, "center")
+  y += 28
   for (const line of wrap(SHOP.address, RIGHT - PAD)) {
     text(line, CENTER, "center")
     y += 28
