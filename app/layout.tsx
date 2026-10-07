@@ -4,6 +4,7 @@ import { Noto_Serif_Bengali } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toast"
+import { BASE_PATH } from "@/lib/base-path"
 import { cn } from "@/lib/utils"
 
 const notoSerifBengali = Noto_Serif_Bengali({
@@ -44,6 +45,11 @@ export default function RootLayout({
       className={cn("antialiased", "font-sans", notoSerifBengali.variable)}
     >
       <body>
+        {/* Launch animation, shown only when opened as the installed app. */}
+        <div id="splash" aria-hidden="true">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`${BASE_PATH}/icons/icon-512.png`} alt="" />
+        </div>
         <ThemeProvider defaultTheme="light">
           <Toaster>{children}</Toaster>
         </ThemeProvider>
